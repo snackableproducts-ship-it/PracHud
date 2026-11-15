@@ -29,8 +29,6 @@ public final class Config {
     public int crosshairOutlineColor = 0xFF101010;
     public boolean crosshairShowWhileAiming = true;
 
-    // Swing animation speed is visual-only; it does not change attack cooldowns.
-    public double swingSpeed = 1.0;
 
     // Shared HUD anchor and scale, editable in the HUD editor.
     public int hudX = 4;
@@ -61,7 +59,6 @@ public final class Config {
                 if (c != null) {
                     if (c.modules == null) c.modules = new LinkedHashMap<>();
                     if (c.quickSlots == null || c.quickSlots.length != 4) c.quickSlots = new int[]{0, 1, 2, 3};
-                    c.swingSpeed = Math.max(0.1, Math.min(5.0, c.swingSpeed));
                     c.hudScale = Math.max(0.75, Math.min(1.5, c.hudScale));
                     instance = c;
                 }
