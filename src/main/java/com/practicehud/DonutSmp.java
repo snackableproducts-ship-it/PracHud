@@ -24,6 +24,8 @@ public final class DonutSmp {
             "(?i)(?:\\[?auction\\]?\\s*)?([A-Za-z0-9_]{3,16})\\s+(?:placed\\s+)?(?:a\\s+)?bid(?:\\s+of)?\\s*[:=]?\\s*\\$?([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)");
     private static final Pattern OUTGOING = Pattern.compile(
             "(?i)you\\s+(?:paid|payed|sent|spent)\\s+[A-Za-z0-9_]{3,16}[^0-9$]*\\$?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)");
+    private static final Pattern WORTH_VALUE = Pattern.compile(
+            "(?i)(?:worth|value|price)[^0-9$]*\\$?([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)");
 
     private DonutSmp() {}
 
@@ -31,6 +33,21 @@ public final class DonutSmp {
         if (!(Modules.enabled("donut_balance") || Modules.enabled("donut_earnings") || Modules.enabled("donut_top_earners") || Modules.enabled("donut_goal_alert") || Modules.enabled("donut_auction")) || message == null) return;
         String line = message.getString();
         Config c = Config.get();
+
+        if (c.donutWorthPending && System.currentTimeMillis() <= c.donutWorthPendingUntil) {
+            Matcher worth = WORTH_VALUE.matcher(line);
+            if (worth.find()) {
+                double value = amount(worth.group(1));
+                if (Double.isFinite(value)) {
+                    c.donutAuctionItemWorth = value;
+                    c.donutAuctionItemWorthKnown = true;
+                    c.donutWorthPending = false;
+                    Config.save();
+                    notifyLocal("§d[XMCore] §fServer worth: §a$" + money(value) + " §fper item.");
+                }
+                return;
+            }
+        }
 
         Matcher balance = BALANCE.matcher(line);
         if (balance.find()) {
@@ -95,6 +112,45 @@ public final class DonutSmp {
         }
     }
 
+    public static void requestWorth(net.minecraft.item.ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return;
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.getNetworkHandler() == null) return;
+        Config c = Config.get();
+        String itemId = net.minecraft.util.Registries.ITEM.getId(stack.getItem()).getPath();
+        c.donutAuctionItemId = itemId;
+        c.donutAuctionItemName = stack.getName().getString();
+        c.donutAuctionItemWorthKnown = false;
+        c.donutWorthPending = true;
+        c.donutWorthPendingUntil = System.currentTimeMillis() + 10_000L;
+        Config.save();
+        mc.getNetworkHandler().sendChatCommand("worth " + itemId);
+        notifyLocal("§d[XMCore] §fChecking server worth for §d" + c.donutAuctionItemName + "§f...");
+    }
+
+    public static void startAuction(net.minecraft.item.ItemStack stack) {
+        Config c = Config.get();
+        if (!Modules.enabled("donut_auction")) {
+            notifyLocal("§d[XMCore] §fEnable Auction Tracker in XMCore first.");
+            return;
+        }
+        if (stack == null || stack.isEmpty()) return;
+        if (c.donutAuctionActive) {
+            notifyLocal("§d[XMCore] §fAn auction tracker is already running.");
+            return;
+        }
+        c.donutAuctionItemName = stack.getName().getString();
+        c.donutAuctionItemId = net.minecraft.util.Registries.ITEM.getId(stack.getItem()).getPath();
+        c.donutAuctionActive = true;
+        c.donutAuctionDurationSeconds = Math.max(5, Math.min(3600, c.donutAuctionDurationSeconds));
+        c.donutAuctionEndAt = System.currentTimeMillis() + c.donutAuctionDurationSeconds * 1000L;
+        c.donutHighestBid = 0;
+        c.donutHighestBidder = "";
+        c.donutBidCount = 0;
+        Config.save();
+        notifyLocal("§d[XMCore] §fAuction tracker started for §d" + c.donutAuctionItemName + "§f.");
+    }
+
     public static void toggleAuction() {
         Config c = Config.get();
         if (!Modules.enabled("donut_auction")) {
@@ -131,6 +187,11 @@ public final class DonutSmp {
 
     public static void tick() {
         Config c = Config.get();
+        if (c.donutWorthPending && System.currentTimeMillis() > c.donutWorthPendingUntil) {
+            c.donutWorthPending = false;
+            Config.save();
+            notifyLocal("§d[XMCore] §fCould not read the server worth reply. Try checking again.");
+        }
         if (c.donutAuctionActive && System.currentTimeMillis() >= c.donutAuctionEndAt) {
             finishAuction();
         }
@@ -219,11 +280,13 @@ public final class DonutSmp {
         if (!c.donutAuctionActive) {
             Hud.panel(ctx, "DonutSMP Auction", Hud.GOLD,
                     Hud.Row.of("No auction is currently running", Hud.GRAY),
-                    Hud.Row.of("Use the auction hotkey to start one", Hud.WHITE));
+                    Hud.Row.of("Open the auction menu to choose an item", Hud.WHITE));
             return;
         }
         long left = Math.max(0L, c.donutAuctionEndAt - System.currentTimeMillis());
         Hud.panel(ctx, "DonutSMP Live Auction", Hud.GOLD,
+                Hud.Row.of("Item: " + (c.donutAuctionItemName.isBlank() ? "Not selected" : c.donutAuctionItemName), Hud.WHITE),
+                Hud.Row.of("Server worth: " + (c.donutAuctionItemWorthKnown ? "$" + money(c.donutAuctionItemWorth) : "Unknown"), Hud.AQUA),
                 Hud.Row.of(String.format("Time left: %d:%02d", left / 60_000L, (left / 1000L) % 60L), Hud.YELLOW),
                 Hud.Row.of("Highest: " + (c.donutHighestBidder.isBlank() ? "No bids" : c.donutHighestBidder), Hud.WHITE),
                 Hud.Row.of("Bid: $" + money(c.donutHighestBid), Hud.GREEN),
