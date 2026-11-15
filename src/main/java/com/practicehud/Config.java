@@ -26,6 +26,15 @@ public final class Config {
     public double donutGoalAmount = 1_000_000.0;
     public boolean donutGoalNotified = false;
     public Map<String, Double> donutPlayerEarnings = new LinkedHashMap<>();
+    public boolean donutAuctionActive = false;
+    public long donutAuctionEndAt = 0L;
+    public int donutAuctionDurationSeconds = 60;
+    public double donutMinimumBid = 0.0;
+    public double donutHighestBid = 0.0;
+    public String donutHighestBidder = "";
+    public int donutBidCount = 0;
+    public boolean donutAntiSnipe = true;
+    public int donutAntiSnipeSeconds = 10;
 
     // Crosshair designer
     public int crosshairShape = 0; // 0 cross, 1 dot, 2 circle, 3 cross + dot
