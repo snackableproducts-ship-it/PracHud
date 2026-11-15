@@ -48,6 +48,9 @@ public final class Modules {
     private static final Map<Integer, Vec3d> LAST_CART_POS = new HashMap<>();
     private static final Map<Integer, Vec3d> CART_VEL = new HashMap<>();
     private static final java.util.Random AMBIENCE_RANDOM = new java.util.Random();
+    private static final int[] FPS_HISTORY = new int[36];
+    private static int fpsHistoryIndex;
+    private static int lastFpsSampleTick;
 
     private Modules() {
     }
@@ -127,6 +130,9 @@ public final class Modules {
         add("keystrokes", "Keystrokes", CAT_VISUAL, "Shows WASD, jump, sneak and sprint key states.", Modules::keystrokesHud);
         add("held_item", "Held Item HUD", CAT_VISUAL, "Shows the held item name, count and durability.", Modules::heldItemHud);
         add("world_time", "World Time", CAT_VISUAL, "Displays the current local world time.", Modules::worldTimeHud);
+        add("fps_graph", "FPS Graph", CAT_VISUAL, "Shows a rolling graph of recent client frame rates.", Modules::fpsGraph);
+        add("session_stats", "Session Stats", CAT_VISUAL, "Shows session duration, movement distance and current FPS.", Modules::sessionStats);
+        add("target_hud", "Target HUD", CAT_VISUAL, "Shows the name and health of the entity under your crosshair.", Modules::entityInfo);
 
         // ---- Ambience ----
         add("ambient_particles", "Ambient Particles", CAT_AMBIENCE,
@@ -153,6 +159,12 @@ public final class Modules {
             LAST_CART_POS.clear();
             CART_VEL.clear();
             return;
+        }
+        // Keep a lightweight rolling FPS history for the optional graph.
+        if (mc.player.age - lastFpsSampleTick >= 10) {
+            FPS_HISTORY[fpsHistoryIndex] = mc.getCurrentFps();
+            fpsHistoryIndex = (fpsHistoryIndex + 1) % FPS_HISTORY.length;
+            lastFpsSampleTick = mc.player.age;
         }
         // Optional client-only ambience. These effects never change server world state.
         if (enabled("ambient_particles") && mc.player.age % 4 == 0) {
@@ -255,6 +267,39 @@ public final class Modules {
 
     private static void fpsCounter(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
         Hud.panel(ctx, "Performance", Hud.AQUA, Row.of("FPS: " + mc.getCurrentFps(), Hud.GREEN));
+    }
+
+    private static void fpsGraph(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        int x = 8;
+        int y = 8;
+        int width = 116;
+        int height = 42;
+        ctx.fill(x + 2, y + 2, x + width + 2, y + height + 2, 0x50000000);
+        ctx.fill(x, y, x + width, y + height, 0xE9101422);
+        ctx.fill(x, y, x + 2, y + height, Config.get().accentColor);
+        ctx.drawTextWithShadow(mc.textRenderer, "FPS HISTORY", x + 8, y + 5, Hud.GRAY);
+        int max = 1;
+        for (int value : FPS_HISTORY) max = Math.max(max, value);
+        int barWidth = 2;
+        int gap = 1;
+        for (int i = 0; i < FPS_HISTORY.length; i++) {
+            int index = (fpsHistoryIndex + i) % FPS_HISTORY.length;
+            int value = FPS_HISTORY[index];
+            int barHeight = Math.max(1, Math.round((value / (float) max) * 20));
+            int bx = x + 8 + i * (barWidth + gap);
+            int by = y + 34 - barHeight;
+            ctx.fill(bx, by, bx + barWidth, y + 34, Config.get().accentColor);
+        }
+    }
+
+    private static void sessionStats(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        int seconds = Math.max(0, p.age / 20);
+        double distance = p.getPos().distanceTo(p.prevX == 0 && p.prevY == 0 && p.prevZ == 0
+                ? p.getPos() : new Vec3d(p.prevX, p.prevY, p.prevZ));
+        Hud.panel(ctx, "Session Stats", Hud.AQUA,
+                Row.of("Time: " + Hud.time(seconds), Hud.WHITE),
+                Row.of("FPS: " + mc.getCurrentFps(), Hud.GREEN),
+                Row.of(String.format("Movement/tick: %.2f", distance), Hud.GRAY));
     }
 
     private static void coordinatesHud(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
