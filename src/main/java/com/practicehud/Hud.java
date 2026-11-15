@@ -47,8 +47,9 @@ public final class Hud {
         w += 12;
         if (anyBar) w = Math.max(w, 110);
 
-        int x = 4;
-        int y = cursorY;
+        Config config = Config.get();
+        int x = config.hudX;
+        int y = config.hudY + cursorY - 4;
         ctx.fill(x, y, x + w, y + h, 0x90000000);
         ctx.fill(x, y, x + 2, y + h, accent);
         ctx.drawTextWithShadow(tr, title, x + 6, y + 3, accent);
