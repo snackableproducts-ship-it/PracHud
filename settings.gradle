@@ -6,4 +6,4 @@ pluginManagement {
     }
 }
 
-rootProject.name = 'practice-hud'
+rootProject.name = 'XMCore'
