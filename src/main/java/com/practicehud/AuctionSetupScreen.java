@@ -54,7 +54,7 @@ public final class AuctionSetupScreen extends Screen {
         worthField = new TextFieldWidget(textRenderer, left() + 235, top() + 158, 170, 22, Text.literal("Item worth"));
         worthField.setPlaceholder(Text.literal("Enter worth, e.g. 1.5m"));
         worthField.setText(c.donutAuctionItemWorthKnown ? Double.toString(c.donutAuctionItemWorth) : "");
-        addSelectableChild(worthField);
+        addDrawableChild(worthField);
     }
 
     private static double parseWorth(String raw) {
