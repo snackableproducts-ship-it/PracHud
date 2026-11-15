@@ -18,16 +18,19 @@ public class PracticeHudClient implements ClientModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private static KeyBinding openGui;
+    private static KeyBinding donutAuctionKey;
     private static final KeyBinding[] quickKeys = new KeyBinding[4];
 
     @Override
     public void onInitializeClient() {
         Config.load();
-        ClientReceiveMessageEvents.GAME.register((message, overlay) -> DonutSmp.onChat(message));
+
 
         KeyBinding.Category category = KeyBinding.Category.create(Identifier.of(MOD_ID, "main"));
         openGui = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.xmcore.open_gui", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, category));
+        donutAuctionKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.xmcore.donut_auction", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, category));
         String[] names = {"slot_a", "slot_b", "slot_c", "slot_d"};
         for (int i = 0; i < quickKeys.length; i++) {
             quickKeys[i] = KeyBindingHelper.registerKeyBinding(new KeyBinding(
