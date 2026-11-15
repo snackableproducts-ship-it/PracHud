@@ -7,83 +7,88 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** Sidebar-based dark client GUI inspired by the supplied reference. */
+/** Prestige-style module browser with selectable colour themes. */
 public class ConfigScreen extends Screen {
     private static final String SETTINGS_TAB = "Settings";
+    private static final String THEMES_TAB = "Themes";
     private static String currentTab = Modules.CAT_VISUAL;
-    private static final String[] SHAPES = {"Cross", "Dot", "Circle", "Cross + Dot"};
+    private static String searchText = "";
 
-    private static final int OVERLAY = 0xB8000008;
-    private static final int FRAME = 0xF20A0D20;
-    private static final int SIDEBAR = 0xFF101329;
-    private static final int CONTENT = 0xFF0D1023;
-    private static final int CARD = 0xFF171A31;
-    private static final int CARD_HOVER = 0xFF202541;
-    private static final int ACCENT = 0xFF7965F5;
-    private static final int TEXT = 0xFFF1F1FA;
-    private static final int MUTED = 0xFF858BA8;
-    private static final int GREEN = 0xFF7DDBB0;
+    // [background, sidebar, content, card, accent, primary text, muted text]
+    private static final int[][] THEMES = {
+            {0xF20A0D20, 0xFF101329, 0xFF0D1023, 0xFF171A31, 0xFF7965F5, 0xFFF1F1FA, 0xFF858BA8}, // Midnight
+            {0xF20D0A1C, 0xFF17102B, 0xFF100B20, 0xFF211638, 0xFFB36BFF, 0xFFF7EEFF, 0xFFA994BE}, // Violet
+            {0xF2081520, 0xFF0D202B, 0xFF091923, 0xFF112B38, 0xFF39C6E8, 0xFFEAFBFF, 0xFF82AAB8}, // Ocean
+            {0xF21B0A12, 0xFF28101B, 0xFF190B14, 0xFF321522, 0xFFFF5C83, 0xFFFFF0F4, 0xFFB88B9A}, // Crimson
+            {0xF2D9DCE8, 0xFFE9EAF2, 0xFFF5F6FB, 0xFFFFFFFF, 0xFF6554D9, 0xFF202238, 0xFF70758D}  // Light
+    };
+    private static final String[] THEME_NAMES = {"Midnight", "Violet", "Ocean", "Crimson", "Light"};
 
     private TextFieldWidget searchField;
-    private String searchText = "";
 
     public ConfigScreen() {
         super(Text.literal("Practice HUD"));
     }
 
+    private int[] palette() {
+        int id = Math.max(0, Math.min(THEMES.length - 1, Config.get().themeId));
+        return THEMES[id];
+    }
+
     @Override
     protected void init() {
         clearChildren();
-        int panelW = Math.min(900, width - 36);
-        int panelH = Math.min(540, height - 28);
+        int panelW = Math.min(980, width - 32);
+        int panelH = Math.min(590, height - 24);
         int left = (width - panelW) / 2;
         int top = (height - panelH) / 2;
-        int sideW = Math.max(126, Math.min(158, panelW / 5));
-        int mainX = left + sideW + 18;
-        int mainW = panelW - sideW - 36;
+        int sideW = Math.max(150, Math.min(178, panelW / 5));
+        int mainX = left + sideW + 14;
+        int mainW = panelW - sideW - 28;
 
-        int navY = top + 78;
+        int navY = top + 100;
         for (String category : Modules.CATEGORIES) {
             final String selected = category;
             addDrawableChild(ButtonWidget.builder(Text.literal(category), b -> {
                 currentTab = selected;
                 searchText = "";
                 clearAndInit();
-            }).dimensions(left + 10, navY, sideW - 20, 25).build());
+            }).dimensions(left + 12, navY, sideW - 24, 25).build());
             navY += 31;
         }
-        navY += 18;
+
+        int generalY = Math.max(navY + 14, top + panelH - 126);
         addDrawableChild(ButtonWidget.builder(Text.literal("Settings"), b -> {
             currentTab = SETTINGS_TAB;
             clearAndInit();
-        }).dimensions(left + 10, navY, sideW - 20, 25).build());
+        }).dimensions(left + 12, generalY, sideW - 24, 24).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Themes"), b -> {
+            currentTab = THEMES_TAB;
+            clearAndInit();
+        }).dimensions(left + 12, generalY + 29, sideW - 24, 24).build());
 
-        if (!SETTINGS_TAB.equals(currentTab)) {
-            searchField = new TextFieldWidget(textRenderer, mainX + mainW - 205, top + 48,
-                    195, 24, Text.literal("Search modules"));
+        if (!SETTINGS_TAB.equals(currentTab) && !THEMES_TAB.equals(currentTab)) {
+            searchField = new TextFieldWidget(textRenderer, mainX + mainW - 205, top + 47,
+                    194, 24, Text.literal("Search modules"));
             searchField.setPlaceholder(Text.literal("Search modules..."));
             searchField.setText(searchText);
             searchField.setChangedListener(value -> {
                 searchText = value;
-                rebuildModuleButtons();
+                clearAndInit();
             });
             addDrawableChild(searchField);
-            buildModuleButtons(left, top, sideW, panelW, panelH);
+            buildModuleButtons(mainX, top, mainW, panelH);
+        } else if (SETTINGS_TAB.equals(currentTab)) {
+            initSettings(mainX, top, mainW, panelH);
         } else {
-            initSettings(left, top, sideW, panelW, panelH);
+            initThemes(mainX, top, mainW);
         }
 
         addDrawableChild(ButtonWidget.builder(Text.literal("×"), b -> close())
                 .dimensions(left + panelW - 31, top + 10, 21, 21).build());
-    }
-
-    private void rebuildModuleButtons() {
-        // Reinitialize so the filtered list and its toggle controls stay in sync.
-        if (client != null) clearAndInit();
     }
 
     private List<Module> filteredModules() {
@@ -95,44 +100,49 @@ public class ConfigScreen extends Screen {
                 .toList();
     }
 
-    private void buildModuleButtons(int left, int top, int sideW, int panelW, int panelH) {
-        int mainX = left + sideW + 18;
-        int mainW = panelW - sideW - 36;
-        int rowY = top + 112;
-        int rowH = 52;
+    private void buildModuleButtons(int mainX, int top, int mainW, int panelH) {
+        int y = top + 127;
         for (Module module : filteredModules()) {
-            int y = rowY;
+            if (y > top + panelH - 48) break;
+            int rowY = y;
             addDrawableChild(ButtonWidget.builder(Text.literal(module.isEnabled() ? "ON" : "OFF"), btn -> {
                 module.toggle();
                 btn.setMessage(Text.literal(module.isEnabled() ? "ON" : "OFF"));
-            }).dimensions(mainX + mainW - 58, y + 14, 46, 23)
+            }).dimensions(mainX + mainW - 66, rowY + 16, 48, 24)
                     .tooltip(Tooltip.of(Text.literal(module.description))).build());
-            rowY += rowH + 5;
-            if (rowY > top + panelH - 45) break;
+            y += 61;
         }
     }
 
-    private void initSettings(int left, int top, int sideW, int panelW, int panelH) {
+    private void initSettings(int x, int top, int w, int panelH) {
         Config c = Config.get();
-        int x = left + sideW + 28;
-        int y = top + 106;
-        int w = panelW - sideW - 56;
-        addAction(x, y, w, "Crosshair shape  •  " + SHAPES[c.crosshairShape], () -> c.crosshairShape = (c.crosshairShape + 1) % SHAPES.length); y += 29;
-        addAction(x, y, w, "Crosshair size  •  " + c.crosshairSize, () -> c.crosshairSize = c.crosshairSize >= 24 ? 1 : c.crosshairSize + 1); y += 29;
-        addAction(x, y, w, "Crosshair gap  •  " + c.crosshairGap, () -> c.crosshairGap = c.crosshairGap >= 12 ? 0 : c.crosshairGap + 1); y += 29;
-        addAction(x, y, w, "Crosshair thickness  •  " + c.crosshairThickness, () -> c.crosshairThickness = c.crosshairThickness >= 5 ? 1 : c.crosshairThickness + 1); y += 29;
-        addAction(x, y, w, "Swing animation  •  " + c.swingSpeedTicks + " ticks", () -> c.swingSpeedTicks = c.swingSpeedTicks <= 1 ? 6 : c.swingSpeedTicks - 1); y += 29;
-        addAction(x, y, w, "Dynamic crosshair  •  " + (c.crosshairDynamic ? "ON" : "OFF"), () -> c.crosshairDynamic = !c.crosshairDynamic); y += 29;
-        addAction(x, y, w, "Crosshair outline  •  " + (c.crosshairOutline ? "ON" : "OFF"), () -> c.crosshairOutline = !c.crosshairOutline); y += 29;
-        addAction(x, y, w, "Crosshair colour  •  cycle", () -> c.crosshairColor = c.crosshairColor == 0xFFFFFFFF ? 0xFF55D6FF : c.crosshairColor == 0xFF55D6FF ? 0xFFFFB86B : 0xFFFFFFFF); y += 29;
-        addAction(x, y, w, "Target colour  •  cycle", () -> c.crosshairTargetColor = c.crosshairTargetColor == 0xFFFF3030 ? 0xFF55FF55 : c.crosshairTargetColor == 0xFF55FF55 ? 0xFFFFB86B : 0xFFFF3030); y += 29;
-        addAction(x, y, w, "HUD accent colour  •  cycle", () -> c.accentColor = c.accentColor == 0xFF55D6FF ? 0xFFB78CFF : c.accentColor == 0xFFB78CFF ? 0xFFFFB86B : 0xFF55D6FF); y += 29;
-        addAction(x, y, w, "Open draggable HUD editor", () -> {
-            Config.save();
-            if (client != null) client.setScreen(new HudEditorScreen());
-        }); y += 29;
-        addAction(x, y, w, "Reset HUD position", () -> { c.hudX = 4; c.hudY = 4; }); y += 29;
-        addAction(x, y, w, "Tracking ring radius  •  " + c.ringRadius, () -> c.ringRadius = c.ringRadius >= 120 ? 10 : c.ringRadius + 5);
+        int y = top + 110;
+        int rowW = Math.min(w - 12, 690);
+        addAction(x, y, rowW, "Crosshair shape  •  " + new String[]{"Cross", "Dot", "Circle", "Cross + Dot"}[Math.max(0, Math.min(3, c.crosshairShape))], () -> c.crosshairShape = (c.crosshairShape + 1) % 4); y += 32;
+        addAction(x, y, rowW, "Crosshair size  •  " + c.crosshairSize, () -> c.crosshairSize = c.crosshairSize >= 24 ? 1 : c.crosshairSize + 1); y += 32;
+        addAction(x, y, rowW, "Crosshair gap  •  " + c.crosshairGap, () -> c.crosshairGap = c.crosshairGap >= 12 ? 0 : c.crosshairGap + 1); y += 32;
+        addAction(x, y, rowW, "Crosshair thickness  •  " + c.crosshairThickness, () -> c.crosshairThickness = c.crosshairThickness >= 5 ? 1 : c.crosshairThickness + 1); y += 32;
+        addAction(x, y, rowW, "Swing Speed  •  " + c.swingSpeedTicks + " ticks (lower = faster)", () -> c.swingSpeedTicks = c.swingSpeedTicks <= 1 ? 6 : c.swingSpeedTicks - 1); y += 32;
+        addAction(x, y, rowW, "Dynamic crosshair  •  " + (c.crosshairDynamic ? "ON" : "OFF"), () -> c.crosshairDynamic = !c.crosshairDynamic); y += 32;
+        addAction(x, y, rowW, "Crosshair outline  •  " + (c.crosshairOutline ? "ON" : "OFF"), () -> c.crosshairOutline = !c.crosshairOutline); y += 32;
+        addAction(x, y, rowW, "Crosshair colour  •  cycle", () -> c.crosshairColor = c.crosshairColor == 0xFFFFFFFF ? 0xFF55D6FF : c.crosshairColor == 0xFF55D6FF ? 0xFFFFB86B : 0xFFFFFFFF); y += 32;
+        addAction(x, y, rowW, "HUD accent colour  •  cycle", () -> c.accentColor = c.accentColor == 0xFF55D6FF ? 0xFFB78CFF : c.accentColor == 0xFFB78CFF ? 0xFFFFB86B : 0xFF55D6FF); y += 32;
+        addAction(x, y, rowW, "Open draggable HUD editor", () -> { Config.save(); if (client != null) client.setScreen(new HudEditorScreen()); }); y += 32;
+        addAction(x, y, rowW, "Reset HUD position", () -> { c.hudX = 4; c.hudY = 4; });
+    }
+
+    private void initThemes(int x, int top, int w) {
+        int y = top + 126;
+        for (int i = 0; i < THEME_NAMES.length; i++) {
+            final int id = i;
+            String label = THEME_NAMES[i] + (Config.get().themeId == i ? "  •  ACTIVE" : "  •  Select theme");
+            addDrawableChild(ButtonWidget.builder(Text.literal(label), b -> {
+                Config.get().themeId = id;
+                Config.save();
+                clearAndInit();
+            }).dimensions(x + 8, y, Math.min(w - 20, 440), 34).build());
+            y += 44;
+        }
     }
 
     private void addAction(int x, int y, int w, String label, Runnable action) {
@@ -140,55 +150,66 @@ public class ConfigScreen extends Screen {
             action.run();
             Config.save();
             clearAndInit();
-        }).dimensions(x, y, w, 22).build());
+        }).dimensions(x + 8, y, w, 26).build());
     }
 
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
-        ctx.fill(0, 0, width, height, OVERLAY);
-        int panelW = Math.min(900, width - 36);
-        int panelH = Math.min(540, height - 28);
+        int[] p = palette();
+        int panelW = Math.min(980, width - 32);
+        int panelH = Math.min(590, height - 24);
         int left = (width - panelW) / 2;
         int top = (height - panelH) / 2;
-        int sideW = Math.max(126, Math.min(158, panelW / 5));
+        int sideW = Math.max(150, Math.min(178, panelW / 5));
         int mainX = left + sideW;
         int mainW = panelW - sideW;
 
-        ctx.fill(left, top, left + panelW, top + panelH, FRAME);
-        ctx.fill(left + 2, top + 2, left + sideW, top + panelH - 2, SIDEBAR);
-        ctx.fill(mainX, top + 2, left + panelW - 2, top + panelH - 2, CONTENT);
+        ctx.fill(0, 0, width, height, p[0]);
+        ctx.fill(left, top, left + panelW, top + panelH, p[1]);
+        ctx.fill(mainX, top + 2, left + panelW - 2, top + panelH - 2, p[2]);
+        ctx.fill(left + 12, top + 17, left + 19, top + 24, p[4]);
+        ctx.drawTextWithShadow(textRenderer, "Prestige Client", left + 27, top + 15, p[5]);
+        ctx.drawText(textRenderer, "PRACTICE HUD  •  CLIENT MENU", left + 15, top + 48, p[6], false);
+        ctx.drawText(textRenderer, "MODULES", left + 15, top + 78, p[6], false);
+        ctx.drawText(textRenderer, "GENERAL", left + 15, top + panelH - 137, p[6], false);
 
-        ctx.fill(left + 15, top + 17, left + 21, top + 23, ACCENT);
-        ctx.drawTextWithShadow(textRenderer, "PRACTICE HUD", left + 29, top + 16, TEXT);
-        ctx.drawText(textRenderer, "CLIENT MENU", left + 15, top + 48, MUTED, false);
-        ctx.drawText(textRenderer, "MODULES", left + 15, top + 66, MUTED, false);
+        String heading = currentTab.equals(SETTINGS_TAB) ? "Settings" : currentTab.equals(THEMES_TAB) ? "Themes" : currentTab + " Modules";
+        ctx.drawTextWithShadow(textRenderer, heading, mainX + 18, top + 18, p[5]);
+        String subtitle = currentTab.equals(THEMES_TAB) ? "Choose the look of your client" : "Manage and customise your client features";
+        ctx.drawText(textRenderer, subtitle, mainX + 18, top + 34, p[6], false);
 
-        ctx.drawTextWithShadow(textRenderer, currentTab.equals(SETTINGS_TAB) ? "Settings" : currentTab,
-                mainX + 18, top + 18, TEXT);
-        ctx.drawText(textRenderer, "Manage your client features", mainX + 18, top + 33, MUTED, false);
-
-        if (!SETTINGS_TAB.equals(currentTab)) {
-            ctx.drawText(textRenderer, "MODULE LIST", mainX + 18, top + 82, MUTED, false);
-            int rowY = top + 108;
-            int rowH = 52;
-            for (Module module : filteredModules()) {
-                if (rowY > top + panelH - 42) break;
-                int right = left + panelW - 14;
-                ctx.fill(mainX + 10, rowY, right, rowY + 47, CARD);
-                ctx.drawTextWithShadow(textRenderer, module.name, mainX + 22, rowY + 10, TEXT);
+        if (!SETTINGS_TAB.equals(currentTab) && !THEMES_TAB.equals(currentTab)) {
+            List<Module> list = filteredModules();
+            long enabled = list.stream().filter(Module::isEnabled).count();
+            ctx.drawText(textRenderer, list.size() + " modules  •  " + enabled + " enabled", mainX + 18, top + 83, p[6], false);
+            int y = top + 116;
+            for (Module module : list) {
+                if (y > top + panelH - 48) break;
+                int right = left + panelW - 13;
+                ctx.fill(mainX + 8, y, right, y + 55, p[3]);
+                ctx.drawTextWithShadow(textRenderer, module.name, mainX + 22, y + 10, p[5]);
                 String desc = module.description;
-                int maxChars = Math.max(18, (mainW - 112) / 5);
-                if (desc.length() > maxChars) desc = desc.substring(0, maxChars - 3) + "...";
-                ctx.drawText(textRenderer, desc, mainX + 22, rowY + 27, MUTED, false);
-                ctx.drawText(textRenderer, module.isEnabled() ? "ENABLED" : "DISABLED",
-                        right - 91, rowY + 18, module.isEnabled() ? GREEN : MUTED, false);
-                rowY += rowH;
+                int max = Math.max(22, (mainW - 145) / 5);
+                if (desc.length() > max) desc = desc.substring(0, max - 3) + "...";
+                ctx.drawText(textRenderer, desc, mainX + 22, y + 29, p[6], false);
+                ctx.drawText(textRenderer, "›", right - 88, y + 19, p[6], false);
+                ctx.fill(right - 35, y + 21, right - 13, y + 34, module.isEnabled() ? p[4] : p[6]);
+                y += 61;
             }
-            if (filteredModules().isEmpty()) {
-                ctx.drawText(textRenderer, "No modules found", mainX + 22, top + 128, MUTED, false);
+            if (list.isEmpty()) ctx.drawText(textRenderer, "No modules found", mainX + 22, top + 135, p[6], false);
+        } else if (THEMES_TAB.equals(currentTab)) {
+            ctx.drawText(textRenderer, "AVAILABLE THEMES", mainX + 18, top + 88, p[6], false);
+            int y = top + 116;
+            for (int i = 0; i < THEMES.length; i++) {
+                int[] theme = THEMES[i];
+                ctx.fill(mainX + 8, y, left + panelW - 13, y + 36, theme[3]);
+                ctx.fill(mainX + 20, y + 10, mainX + 40, y + 26, theme[4]);
+                ctx.drawText(textRenderer, THEME_NAMES[i], mainX + 51, y + 14, theme[5], false);
+                if (Config.get().themeId == i) ctx.drawText(textRenderer, "ACTIVE", left + panelW - 75, y + 14, theme[4], false);
+                y += 45;
             }
         } else {
-            ctx.drawText(textRenderer, "CLIENT PREFERENCES", mainX + 18, top + 82, MUTED, false);
+            ctx.drawText(textRenderer, "CLIENT PREFERENCES", mainX + 18, top + 88, p[6], false);
         }
 
         super.render(ctx, mouseX, mouseY, delta);
