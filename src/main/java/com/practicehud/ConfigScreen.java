@@ -57,11 +57,11 @@ public class ConfigScreen extends Screen {
         return THEME_COLORS[Math.max(0, Math.min(THEME_COLORS.length - 1, Config.get().themeId))];
     }
 
-    private int left() { return Math.max(12, (width - Math.min(1120, width - 24)) / 2); }
-    private int top() { return Math.max(12, (height - Math.min(700, height - 24)) / 2); }
-    private int panelW() { return Math.min(1120, width - 24); }
-    private int panelH() { return Math.min(700, height - 24); }
-    private int sideW() { return 202; }
+    private int left() { return Math.max(12, (width - Math.min(1000, width - 24)) / 2); }
+    private int top() { return Math.max(12, (height - Math.min(640, height - 24)) / 2); }
+    private int panelW() { return Math.min(1000, width - 24); }
+    private int panelH() { return Math.min(640, height - 24); }
+    private int sideW() { return 184; }
     private int mainX() { return left() + sideW(); }
     private int mainW() { return panelW() - sideW(); }
     private boolean inside(double mx, double my, int x, int y, int w, int h) {
@@ -184,10 +184,10 @@ public class ConfigScreen extends Screen {
         ctx.drawText(textRenderer, enabled + " ENABLED", sx + 128, y + 76, ACCENT, false);
 
         int gridY = y + 116;
-        int gap = 12;
+        int gap = 14;
         int cardW = (w - 56 - gap) / 2;
-        int cardH = 76;
-        int rows = Math.max(1, (h - 144) / (cardH + gap));
+        int cardH = 84;
+        int rows = Math.max(1, (h - 164) / (cardH + gap));
         int start = scroll * 2;
         for (int i = start; i < Math.min(modules.size(), start + rows * 2); i++) {
             Module m = modules.get(i);
@@ -197,19 +197,21 @@ public class ConfigScreen extends Screen {
             int cy = gridY + row * (cardH + gap);
             boolean hover = inside(mx, my, cx, cy, cardW, cardH);
             boolean on = m.isEnabled();
-            ctx.fill(cx, cy, cx + cardW, cy + cardH, hover ? CARD_HOVER : CARD);
-            ctx.fill(cx, cy, cx + 3, cy + cardH, on ? ACCENT : 0xFF343B50);
-            ctx.fill(cx + 14, cy + 14, cx + 38, cy + 38, on ? 0xFF342A55 : 0xFF252B3B);
-            ctx.drawCenteredTextWithShadow(textRenderer, shortIcon(m.name), cx + 26, cy + 22, on ? ACCENT : MUTED);
-            ctx.drawTextWithShadow(textRenderer, m.name, cx + 48, cy + 13, TEXT);
+            ctx.fill(cx - 1, cy - 1, cx + cardW + 1, cy + cardH + 1, hover ? 0xFF383052 : 0xFF252B3C);
+            ctx.fill(cx, cy, cx + cardW, cy + cardH, hover ? 0xFF1E2437 : CARD);
+            ctx.fill(cx, cy + 9, cx + 3, cy + cardH - 9, on ? ACCENT : 0xFF343B50);
+            ctx.fill(cx + 14, cy + 15, cx + 42, cy + 43, on ? 0xFF342A55 : 0xFF252B3B);
+            ctx.drawCenteredTextWithShadow(textRenderer, shortIcon(m.name), cx + 28, cy + 25, on ? ACCENT : MUTED);
+            ctx.drawTextWithShadow(textRenderer, m.name, cx + 52, cy + 14, TEXT);
             String desc = m.description;
-            int max = Math.max(18, (cardW - 70) / 5);
+            int max = Math.max(16, (cardW - 112) / 5);
             if (desc.length() > max) desc = desc.substring(0, max - 2) + "..";
-            ctx.drawText(textRenderer, desc, cx + 48, cy + 30, MUTED, false);
-            int tx = cx + cardW - 48, ty = cy + 28;
+            ctx.drawText(textRenderer, desc, cx + 52, cy + 33, MUTED, false);
+            int tx = cx + cardW - 52, ty = cy + 25;
+            ctx.fill(tx - 4, ty - 4, tx + 40, ty + 22, on ? 0x553F326B : 0xFF252B3B);
             ctx.fill(tx, ty, tx + 34, ty + 18, on ? ACCENT_DARK : 0xFF343B50);
             ctx.fill(on ? tx + 18 : tx + 2, ty + 2, on ? tx + 32 : tx + 16, ty + 16, on ? 0xFFFFFFFF : 0xFF929AAF);
-            ctx.drawText(textRenderer, on ? "ON" : "OFF", cx + cardW - 48, cy + 54, on ? ACCENT : MUTED, false);
+            ctx.drawText(textRenderer, on ? "ON" : "OFF", cx + cardW - 48, cy + 57, on ? ACCENT : MUTED, false);
         }
         if (modules.isEmpty()) ctx.drawText(textRenderer, "No matching modules. Try another search.", sx + 30, gridY + 18, MUTED, false);
         int maxScroll = Math.max(0, (modules.size() - 1) / 2 - rows + 1);
@@ -249,15 +251,25 @@ public class ConfigScreen extends Screen {
 
     private void drawSection(DrawContext ctx, int x, int y, String title, String sub) {
         ctx.drawTextWithShadow(textRenderer, title, x, y, ACCENT);
-        ctx.drawText(textRenderer, sub, x + 180, y, MUTED, false);
+        int subX = x + textRenderer.getWidth(title) + 14;
+        int available = Math.max(0, mainW() - (subX - (left() + sideW())) - 32);
+        String fit = sub;
+        while (!fit.isEmpty() && textRenderer.getWidth(fit) > available) fit = fit.substring(0, fit.length() - 1);
+        if (!fit.equals(sub) && fit.length() > 3) fit = fit.substring(0, fit.length() - 3) + "...";
+        ctx.drawText(textRenderer, fit, subX, y, MUTED, false);
     }
 
     private void drawSetting(DrawContext ctx, int mx, int my, int x, int y, int w, String name, String value, String hint) {
         boolean hover = inside(mx, my, x, y, w, 32);
-        ctx.fill(x, y, x + w, y + 32, hover ? CARD_HOVER : CARD);
-        ctx.drawText(textRenderer, name, x + 12, y + 11, TEXT, false);
-        ctx.drawText(textRenderer, hint, x + w - 178, y + 11, MUTED, false);
-        ctx.drawText(textRenderer, value, x + w - 90, y + 11, ACCENT, false);
+        ctx.fill(x - 1, y - 1, x + w + 1, y + 33, hover ? 0xFF383052 : 0xFF252B3C);
+        ctx.fill(x, y, x + w, y + 32, hover ? 0xFF1E2437 : CARD);
+        ctx.drawText(textRenderer, name, x + 12, y + 5, TEXT, false);
+        ctx.drawText(textRenderer, hint, x + 12, y + 19, MUTED, false);
+        int valueW = textRenderer.getWidth(value) + 18;
+        int chipW = Math.min(Math.max(48, valueW), Math.max(48, w / 3));
+        int chipX = x + w - chipW - 10;
+        ctx.fill(chipX, y + 6, chipX + chipW, y + 26, 0xFF30264D);
+        ctx.drawCenteredTextWithShadow(textRenderer, value, chipX + chipW / 2, y + 12, ACCENT);
     }
 
     private void renderThemes(DrawContext ctx, int mx, int my, int sx, int y, int w) {
@@ -318,8 +330,8 @@ public class ConfigScreen extends Screen {
             if (inside(mx, my, searchX, searchY, 210, 30)) { searchFocused = true; return true; }
             searchFocused = false;
             List<Module> modules = filteredModules();
-            int gridY = y + 116, gap = 12, cardW = (mainW() - 56 - gap) / 2, cardH = 76;
-            int rows = Math.max(1, (h - 144) / (cardH + gap));
+            int gridY = y + 116, gap = 14, cardW = (mainW() - 56 - gap) / 2, cardH = 84;
+            int rows = Math.max(1, (h - 164) / (cardH + gap));
             int start = scroll * 2;
             for (int i = start; i < Math.min(modules.size(), start + rows * 2); i++) {
                 int col = (i - start) % 2, row = (i - start) / 2;
@@ -419,7 +431,7 @@ public class ConfigScreen extends Screen {
             return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
         }
         if (isCategory()) {
-            int rows = Math.max(1, (panelH() - 144) / 88);
+            int rows = Math.max(1, (panelH() - 164) / 98);
             int max = Math.max(0, (filteredModules().size() - 1) / 2 - rows + 1);
             scroll = Math.max(0, Math.min(max, scroll + (verticalAmount < 0 ? 1 : -1)));
             return true;
