@@ -34,6 +34,7 @@ public class ConfigScreen extends Screen {
     private int scroll;
     private int contentScroll;
     private boolean searchFocused;
+    private static String selectedModuleId;
 
     private static final String[] THEME_NAMES = {"Midnight", "Violet", "Ocean", "Crimson", "Light"};
     private static final int[][] THEME_COLORS = {
@@ -79,6 +80,7 @@ public class ConfigScreen extends Screen {
 
     private void selectTab(String tab) {
         currentTab = tab;
+        selectedModuleId = null;
         searchText = "";
         searchFocused = false;
         scroll = 0;
@@ -142,7 +144,10 @@ public class ConfigScreen extends Screen {
         int clipTop = y + 62;
         int clipBottom = y + h - 12;
         ctx.enableScissor(sx + 1, clipTop, sx + contentW - 1, clipBottom);
-        if (isCategory()) renderModules(ctx, mouseX, mouseY, sx, y, contentW, h);
+        if (isCategory()) {
+            if (selectedModuleId != null) renderModuleSettings(ctx, mouseX, mouseY, sx, y, contentW);
+            else renderModules(ctx, mouseX, mouseY, sx, y, contentW, h);
+        }
         else if (currentTab.equals(SETTINGS)) renderSettings(ctx, mouseX, mouseY, sx, y, contentW);
         else if (currentTab.equals(THEMES)) renderThemes(ctx, mouseX, mouseY, sx, y, contentW);
         else renderProfiles(ctx, mouseX, mouseY, sx, y, contentW);
@@ -219,6 +224,26 @@ public class ConfigScreen extends Screen {
             ctx.drawText(textRenderer, "SCROLL  •  " + (scroll + 1) + " / " + (maxScroll + 1),
                     sx + w - 145, y + h - 24, MUTED, false);
         }
+    }
+
+    private void renderModuleSettings(DrawContext ctx, int mx, int my, int sx, int y, int w) {
+        Module module = Modules.byId(selectedModuleId);
+        if (module == null || !module.category.equals(currentTab)) { selectedModuleId = null; return; }
+        int x = sx + 28, yy = y + 88 - contentScroll, rw = w - 56;
+        ctx.drawTextWithShadow(textRenderer, "‹  BACK TO " + currentTab.toUpperCase(Locale.ROOT), x, yy, ACCENT);
+        yy += 34;
+        ctx.fill(x, yy, x + rw, yy + 92, CARD);
+        ctx.fill(x, yy, x + 3, yy + 92, module.isEnabled() ? ACCENT : 0xFF343B50);
+        ctx.drawTextWithShadow(textRenderer, module.name, x + 16, yy + 15, TEXT);
+        ctx.drawText(textRenderer, module.description, x + 16, yy + 36, MUTED, false);
+        int tx = x + rw - 64, ty = yy + 17;
+        ctx.fill(tx, ty, tx + 48, ty + 22, module.isEnabled() ? ACCENT_DARK : 0xFF343B50);
+        ctx.drawCenteredTextWithShadow(textRenderer, module.isEnabled() ? "ON" : "OFF", tx + 24, ty + 7, TEXT);
+        yy += 112;
+        drawSection(ctx, x, yy, "MODULE SETTINGS", "Individual controls for this feature"); yy += 34;
+        drawSetting(ctx, mx, my, x, yy, rw, "Module state", module.isEnabled() ? "Enabled" : "Disabled", "Click to toggle"); yy += 42;
+        drawSetting(ctx, mx, my, x, yy, rw, "HUD position", "HUD Studio", "Move this module's widget in HUD Studio"); yy += 42;
+        ctx.drawText(textRenderer, "More module-specific options will appear here as they are added.", x + 2, yy + 8, MUTED, false);
     }
 
     private String shortIcon(String name) {
@@ -325,6 +350,18 @@ public class ConfigScreen extends Screen {
             if (inside(mx, my, x + 12, gy, sideW() - 24, 29)) { selectTab(general[i]); return true; }
         }
 
+        if (isCategory() && selectedModuleId != null) {
+            Module module = Modules.byId(selectedModuleId);
+            int bx = sx + 28, by = y + 88 - contentScroll, rw = mainW() - 56;
+            if (module == null || !module.category.equals(currentTab) || inside(mx, my, bx, by, rw, 30)) {
+                selectedModuleId = null; contentScroll = 0; return true;
+            }
+            if (inside(mx, my, bx, by + 34, rw, 92) || inside(mx, my, bx, by + 146, rw, 32)) {
+                module.toggle(); Config.save(); return true;
+            }
+            return true;
+        }
+
         if (isCategory()) {
             int searchX = sx + mainW() - 238, searchY = y + 66;
             if (inside(mx, my, searchX, searchY, 210, 30)) { searchFocused = true; return true; }
@@ -337,8 +374,14 @@ public class ConfigScreen extends Screen {
                 int col = (i - start) % 2, row = (i - start) / 2;
                 int cx = sx + 28 + col * (cardW + gap), cy = gridY + row * (cardH + gap);
                 if (inside(mx, my, cx, cy, cardW, cardH)) {
-                    modules.get(i).toggle();
-                    Config.save();
+                    Module module = modules.get(i);
+                    if (inside(mx, my, cx + cardW - 58, cy + 16, 56, 54)) {
+                        module.toggle();
+                        Config.save();
+                    } else {
+                        selectedModuleId = module.id;
+                        contentScroll = 0;
+                    }
                     return true;
                 }
             }
