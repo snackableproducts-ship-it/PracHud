@@ -30,7 +30,7 @@ public final class DonutSmp {
     private DonutSmp() {}
 
     public static void onChat(Text message) {
-        if (!(Modules.enabled("donut_balance") || Modules.enabled("donut_earnings") || Modules.enabled("donut_top_earners") || Modules.enabled("donut_goal_alert") || Modules.enabled("donut_auction")) || message == null) return;
+        if (message == null) return;
         String line = message.getString();
         Config c = Config.get();
 
@@ -48,6 +48,10 @@ public final class DonutSmp {
                 return;
             }
         }
+
+        if (!(Modules.enabled("donut_balance") || Modules.enabled("donut_earnings")
+                || Modules.enabled("donut_top_earners") || Modules.enabled("donut_goal_alert")
+                || Modules.enabled("donut_auction"))) return;
 
         Matcher balance = BALANCE.matcher(line);
         if (balance.find()) {
