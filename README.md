@@ -38,9 +38,17 @@ The jar is `build/libs/practice-hud-1.0.0.jar`. Put it in `.minecraft/mods` with
 | Minecart & Redstone | Minecart Speedometer | Speed/heading of the 3 nearest carts |
 | | Inventory Rail Counter | Rails, minecarts, redstone |
 | Utility | Throw Landing Calculator | Predicted landing point for pearls, snowballs, eggs, splash/lingering potions |
+| Visuals | FPS Counter | Current client FPS |
+| | Coordinates HUD | Current X, Y and Z coordinates |
+| | Armor Status | Equipped armour and durability |
+| | Potion HUD | Active effects and remaining duration |
 | | Interaction Distance | Distance to the targeted block/entity |
 
 Settings tab: crosshair shape/size/gap/thickness/dynamic, ring radius, and which hotbar slot each of four **Quick Slot** keys selects (bind the keys under Controls).
+
+## Visuals additions in this branch
+
+The Visuals category now includes FPS Counter, Coordinates HUD, Armor Status and Potion HUD. These use the existing HUD panel renderer and module toggle/config system.
 
 ## Not in this first version
 
