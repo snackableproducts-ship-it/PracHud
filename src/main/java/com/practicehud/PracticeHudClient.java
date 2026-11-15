@@ -23,6 +23,7 @@ public class PracticeHudClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         Config.load();
+        ClientReceiveMessageEvents.GAME.register((message, overlay) -> DonutSmp.onChat(message));
 
         KeyBinding.Category category = KeyBinding.Category.create(Identifier.of(MOD_ID, "main"));
         openGui = KeyBindingHelper.registerKeyBinding(new KeyBinding(
