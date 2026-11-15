@@ -38,6 +38,9 @@ public final class Config {
     public double hudScale = 1.0;
     public int accentColor = 0xFF55D6FF;
 
+    // 0 Midnight, 1 Purple, 2 Ocean, 3 Crimson, 4 Light
+    public int themeId = 1;
+
     // Target tracking ring
     public int ringRadius = 40;
     public int ringColor = 0xFF55FFFF;
