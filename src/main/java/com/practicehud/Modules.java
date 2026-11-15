@@ -331,25 +331,27 @@ public final class Modules {
             extra = (int) Math.round(Math.sqrt(v.x * v.x + v.z * v.z) * 12.0);
             if (!mc.player.isOnGround()) extra += 2;
         }
-        int s = c.crosshairSize;
-        int g = c.crosshairGap + extra;
-        int t = Math.max(1, c.crosshairThickness);
-        int lo = -t / 2;
-        int hi = lo + t;
+        int size = c.crosshairSize;
+        int gap = c.crosshairGap + extra;
+        int thickness = Math.max(1, c.crosshairThickness);
+        if (c.crosshairOutline) drawCrosshairShape(ctx, cx, cy, size, gap, thickness + 2, c.crosshairOutlineColor);
+        drawCrosshairShape(ctx, cx, cy, size, gap, thickness, color);
+    }
 
-        if (c.crosshairShape == 0 || c.crosshairShape == 3) {
-            ctx.fill(cx - g - s, cy + lo, cx - g, cy + hi, color);
-            ctx.fill(cx + g, cy + lo, cx + g + s, cy + hi, color);
-            ctx.fill(cx + lo, cy - g - s, cx + hi, cy - g, color);
-            ctx.fill(cx + lo, cy + g, cx + hi, cy + g + s, color);
+    private static void drawCrosshairShape(DrawContext ctx, int cx, int cy, int size, int gap, int thickness, int color) {
+        int lo = -thickness / 2;
+        int hi = lo + thickness;
+        if (Config.get().crosshairShape == 0 || Config.get().crosshairShape == 3) {
+            ctx.fill(cx - gap - size, cy + lo, cx - gap, cy + hi, color);
+            ctx.fill(cx + gap, cy + lo, cx + gap + size, cy + hi, color);
+            ctx.fill(cx + lo, cy - gap - size, cx + hi, cy - gap, color);
+            ctx.fill(cx + lo, cy + gap, cx + hi, cy + gap + size, color);
         }
-        if (c.crosshairShape == 1 || c.crosshairShape == 3) {
-            int r = Math.max(1, t);
+        if (Config.get().crosshairShape == 1 || Config.get().crosshairShape == 3) {
+            int r = Math.max(1, thickness);
             ctx.fill(cx - r, cy - r, cx + r, cy + r, color);
         }
-        if (c.crosshairShape == 2) {
-            drawCircle(ctx, cx, cy, s + g, t, color);
-        }
+        if (Config.get().crosshairShape == 2) drawCircle(ctx, cx, cy, size + gap, thickness, color);
     }
 
     private static void drawCircle(DrawContext ctx, int cx, int cy, int radius, int thickness, int color) {
