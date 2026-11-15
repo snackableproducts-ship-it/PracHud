@@ -12,7 +12,7 @@ import java.util.Map;
 /** Select and drag individual HUD cards; positions persist in the mod config. */
 public final class HudEditorScreen extends Screen {
     private static final List<String> WIDGETS = List.of(
-            "Performance", "Coordinates", "Armor Status", "Potion Effects", "Keystrokes",
+            "Performance", "FPS History", "Coordinates", "Armor Status", "Potion Effects", "Keystrokes",
             "Held Item", "World Time", "Totems", "Respawn Anchor", "Movement", "Guard Timing",
             "Shield", "Cooldown", "Combat", "Critical Hit", "Mace", "Wind Burst Trainer",
             "Vertical Speed", "Elytra", "Minecarts", "Rail Supplies", "Throw Landing",

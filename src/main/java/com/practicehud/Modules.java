@@ -339,26 +339,12 @@ public final class Modules {
     }
 
     private static void fpsGraph(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
-        int x = 8;
-        int y = 8;
-        int width = 116;
-        int height = 42;
-        ctx.fill(x + 2, y + 2, x + width + 2, y + height + 2, 0x50000000);
-        ctx.fill(x, y, x + width, y + height, 0xE9101422);
-        ctx.fill(x, y, x + 2, y + height, Config.get().accentColor);
-        ctx.drawTextWithShadow(mc.textRenderer, "FPS HISTORY", x + 8, y + 5, Hud.GRAY);
-        int max = 1;
-        for (int value : FPS_HISTORY) max = Math.max(max, value);
-        int barWidth = 2;
-        int gap = 1;
-        for (int i = 0; i < FPS_HISTORY.length; i++) {
-            int index = (fpsHistoryIndex + i) % FPS_HISTORY.length;
-            int value = FPS_HISTORY[index];
-            int barHeight = Math.max(1, Math.round((value / (float) max) * 20));
-            int bx = x + 8 + i * (barWidth + gap);
-            int by = y + 34 - barHeight;
-            ctx.fill(bx, by, bx + barWidth, y + 34, Config.get().accentColor);
+        // Drawn through the shared HUD layout so it flows with (and never overlaps) the other panels.
+        int[] ordered = new int[FPS_HISTORY.length];
+        for (int i = 0; i < ordered.length; i++) {
+            ordered[i] = FPS_HISTORY[(fpsHistoryIndex + i) % FPS_HISTORY.length];
         }
+        Hud.graph(ctx, "FPS History", Config.get().accentColor, ordered, mc.getCurrentFps() + " FPS", Hud.GREEN);
     }
 
     private static void sessionStats(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
