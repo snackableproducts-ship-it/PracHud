@@ -56,12 +56,14 @@ public final class Config {
     }
 
     private static Path path() {
-        return FabricLoader.getInstance().getConfigDir().resolve("practicehud.json");
+        return FabricLoader.getInstance().getConfigDir().resolve("xmcore.json");
     }
 
     public static void load() {
         try {
             Path p = path();
+            Path legacy = FabricLoader.getInstance().getConfigDir().resolve("practicehud.json");
+            if (!Files.exists(p) && Files.exists(legacy)) p = legacy;
             if (Files.exists(p)) {
                 Config c = GSON.fromJson(Files.readString(p), Config.class);
                 if (c != null) {
