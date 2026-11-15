@@ -66,7 +66,7 @@ public final class AuctionSetupScreen extends Screen {
                     : inside(mouseX, mouseY, sx, sy, 20, 20) ? HOVER : CARD);
             if (!stack.isEmpty()) {
                 ctx.drawItem(stack, sx + 2, sy + 2);
-                if (stack.getCount() > 1) ctx.drawStackOverlay(textRenderer, stack, sx + 2, sy + 2);
+                if (stack.getCount() > 1) ctx.drawTextWithShadow(textRenderer, Integer.toString(stack.getCount()), sx + 11, sy + 11, 0xFFFFFFFF);
             }
         }
 
