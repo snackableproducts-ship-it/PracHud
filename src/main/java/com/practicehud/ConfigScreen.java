@@ -1,99 +1,68 @@
 package com.practicehud;
 
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.tooltip.Tooltip;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 import java.util.Locale;
 
-/** XMCore-style module browser with selectable colour themes. */
+/**
+ * Custom XMCore client interface. All controls are drawn by the screen rather
+ * than using vanilla ButtonWidget styling.
+ */
 public class ConfigScreen extends Screen {
-    private static final String SETTINGS_TAB = "Settings";
-    private static final String THEMES_TAB = "Themes";
-    private static final String PROFILES_TAB = "Profiles";
+    private static final String SETTINGS = "Settings";
+    private static final String THEMES = "Themes";
+    private static final String PROFILES = "Profiles";
+    private static final int BG = 0xF5080912;
+    private static final int PANEL = 0xFF101321;
+    private static final int SIDEBAR = 0xFF0C0F1B;
+    private static final int CARD = 0xFF171C2D;
+    private static final int CARD_HOVER = 0xFF202740;
+    private static final int TEXT = 0xFFF1F3FC;
+    private static final int MUTED = 0xFF8992AA;
+    private static final int ACCENT = 0xFF9A7BFF;
+    private static final int ACCENT_DARK = 0xFF6049B8;
+
     private static String currentTab = Modules.CAT_VISUAL;
     private static String searchText = "";
+    private int scroll;
+    private boolean searchFocused;
 
-    // [background, sidebar, content, card, accent, primary text, muted text]
-    private static final int[][] THEMES = {
-            {0xF20A0D20, 0xFF101329, 0xFF0D1023, 0xFF171A31, 0xFF7965F5, 0xFFF1F1FA, 0xFF858BA8}, // Midnight
-            {0xF20D0A1C, 0xFF17102B, 0xFF100B20, 0xFF211638, 0xFFB36BFF, 0xFFF7EEFF, 0xFFA994BE}, // Violet
-            {0xF2081520, 0xFF0D202B, 0xFF091923, 0xFF112B38, 0xFF39C6E8, 0xFFEAFBFF, 0xFF82AAB8}, // Ocean
-            {0xF21B0A12, 0xFF28101B, 0xFF190B14, 0xFF321522, 0xFFFF5C83, 0xFFFFF0F4, 0xFFB88B9A}, // Crimson
-            {0xF2D9DCE8, 0xFFE9EAF2, 0xFFF5F6FB, 0xFFFFFFFF, 0xFF6554D9, 0xFF202238, 0xFF70758D}  // Light
-    };
     private static final String[] THEME_NAMES = {"Midnight", "Violet", "Ocean", "Crimson", "Light"};
-
-    private TextFieldWidget searchField;
+    private static final int[][] THEMES = {
+            {0xF20A0D20, 0xFF101329, 0xFF0D1023, 0xFF171A31, 0xFF7965F5, 0xFFF1F1FA, 0xFF858BA8},
+            {0xF20D0A1C, 0xFF17102B, 0xFF100B20, 0xFF211638, 0xFFB36BFF, 0xFFF7EEFF, 0xFFA994BE},
+            {0xF2081520, 0xFF0D202B, 0xFF091923, 0xFF112B38, 0xFF39C6E8, 0xFFEAFBFF, 0xFF82AAB8},
+            {0xF21B0A12, 0xFF28101B, 0xFF190B14, 0xFF321522, 0xFFFF5C83, 0xFFFFF0F4, 0xFFB88B9A},
+            {0xF2D9DCE8, 0xFFE9EAF2, 0xFFF5F6FB, 0xFFFFFFFF, 0xFF6554D9, 0xFF202238, 0xFF70758D}
+    };
 
     public ConfigScreen() {
         super(Text.literal("XMCore"));
     }
 
-    private int[] palette() {
-        int id = Math.max(0, Math.min(THEMES.length - 1, Config.get().themeId));
-        return THEMES[id];
-    }
-
     @Override
     protected void init() {
-        clearChildren();
-        int panelW = Math.min(980, width - 32);
-        int panelH = Math.min(590, height - 24);
-        int left = (width - panelW) / 2;
-        int top = (height - panelH) / 2;
-        int sideW = Math.max(150, Math.min(178, panelW / 5));
-        int mainX = left + sideW + 14;
-        int mainW = panelW - sideW - 28;
+        // Intentionally no vanilla widgets: the complete interface is custom drawn.
+    }
 
-        int navY = top + 100;
-        for (String category : Modules.CATEGORIES) {
-            final String selected = category;
-            addDrawableChild(ButtonWidget.builder(Text.literal(category), b -> {
-                currentTab = selected;
-                searchText = "";
-                clearAndInit();
-            }).dimensions(left + 12, navY, sideW - 24, 25).build());
-            navY += 31;
-        }
+    private int[] palette() {
+        return THEMES[Math.max(0, Math.min(THEMES.length - 1, Config.get().themeId))];
+    }
 
-        int generalY = Math.max(navY + 14, top + panelH - 126);
-        addDrawableChild(ButtonWidget.builder(Text.literal("Settings"), b -> {
-            currentTab = SETTINGS_TAB;
-            clearAndInit();
-        }).dimensions(left + 12, generalY, sideW - 24, 24).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Themes"), b -> {
-            currentTab = THEMES_TAB;
-            clearAndInit();
-        }).dimensions(left + 12, generalY + 29, sideW - 24, 24).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Profiles"), b -> {
-            currentTab = PROFILES_TAB;
-            clearAndInit();
-        }).dimensions(left + 12, generalY + 58, sideW - 24, 24).build());
-
-        if (!SETTINGS_TAB.equals(currentTab) && !THEMES_TAB.equals(currentTab)) {
-            searchField = new TextFieldWidget(textRenderer, mainX + mainW - 205, top + 47,
-                    194, 24, Text.literal("Search modules"));
-            searchField.setPlaceholder(Text.literal("Search modules..."));
-            searchField.setText(searchText);
-            searchField.setChangedListener(value -> {
-                searchText = value;
-                clearAndInit();
-            });
-            addDrawableChild(searchField);
-            buildModuleButtons(mainX, top, mainW, panelH);
-        } else if (SETTINGS_TAB.equals(currentTab)) {
-            initSettings(mainX, top, mainW, panelH);
-        } else {
-            initThemes(mainX, top, mainW);
-        }
-
-        addDrawableChild(ButtonWidget.builder(Text.literal("×"), b -> close())
-                .dimensions(left + panelW - 31, top + 10, 21, 21).build());
+    private int left() { return Math.max(12, (width - Math.min(1120, width - 24)) / 2); }
+    private int top() { return Math.max(12, (height - Math.min(700, height - 24)) / 2); }
+    private int panelW() { return Math.min(1120, width - 24); }
+    private int panelH() { return Math.min(700, height - 24); }
+    private int sideW() { return 202; }
+    private int mainX() { return left() + sideW(); }
+    private int mainW() { return panelW() - sideW(); }
+    private boolean inside(double mx, double my, int x, int y, int w, int h) {
+        return mx >= x && mx <= x + w && my >= y && my <= y + h;
     }
 
     private List<Module> filteredModules() {
@@ -105,86 +74,286 @@ public class ConfigScreen extends Screen {
                 .toList();
     }
 
-    private void buildModuleButtons(int mainX, int top, int mainW, int panelH) {
-        int y = top + 119;
-        for (Module module : filteredModules()) {
-            if (y > top + panelH - 43) break;
-            int rowY = y;
-            addDrawableChild(ButtonWidget.builder(Text.literal(module.isEnabled() ? "ON" : "OFF"), btn -> {
-                module.toggle();
-                btn.setMessage(Text.literal(module.isEnabled() ? "ON" : "OFF"));
-                Config.save();
-            }).dimensions(mainX + mainW - 66, rowY + 8, 48, 23)
-                    .tooltip(Tooltip.of(Text.literal(module.description))).build());
-            y += 45;
+    private void selectTab(String tab) {
+        currentTab = tab;
+        searchText = "";
+        searchFocused = false;
+        scroll = 0;
+    }
+
+    @Override
+    public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
+        int[] p = palette();
+        int x = left(), y = top(), w = panelW(), h = panelH();
+        int sx = x + sideW(), contentW = mainW();
+
+        ctx.fill(0, 0, width, height, BG);
+        // Soft backdrop accents and the main window.
+        ctx.fill(x - 5, y - 5, x + w + 5, y + h + 5, 0x28000000);
+        ctx.fill(x, y, x + w, y + h, p[2]);
+        ctx.fill(x, y, sx, y + h, SIDEBAR);
+        ctx.fill(sx, y, sx + 1, y + h, 0xFF252A3B);
+
+        // Brand block.
+        ctx.fill(x + 20, y + 20, x + 54, y + 54, ACCENT_DARK);
+        ctx.fill(x + 23, y + 23, x + 51, y + 51, ACCENT);
+        ctx.drawCenteredTextWithShadow(textRenderer, "X", x + 37, y + 33, 0xFFFFFFFF);
+        ctx.drawTextWithShadow(textRenderer, "XMCORE", x + 65, y + 24, TEXT);
+        ctx.drawText(textRenderer, "CLIENT FRAMEWORK", x + 65, y + 39, MUTED, false);
+        ctx.fill(x + 18, y + 70, sx - 18, y + 71, 0xFF252A3B);
+
+        ctx.drawText(textRenderer, "WORKSPACE", x + 20, y + 86, MUTED, false);
+        int navY = y + 108;
+        for (String category : Modules.CATEGORIES) {
+            boolean active = category.equals(currentTab);
+            boolean hover = inside(mouseX, mouseY, x + 12, navY, sideW() - 24, 31);
+            drawNav(ctx, x + 12, navY, sideW() - 24, 31, category, active, hover);
+            navY += 36;
+        }
+
+        int generalY = y + h - 150;
+        ctx.fill(x + 18, generalY - 13, sx - 18, generalY - 12, 0xFF252A3B);
+        ctx.drawText(textRenderer, "PREFERENCES", x + 20, generalY, MUTED, false);
+        String[] general = {SETTINGS, THEMES, PROFILES};
+        for (int i = 0; i < general.length; i++) {
+            int gy = generalY + 20 + i * 34;
+            boolean active = currentTab.equals(general[i]);
+            drawNav(ctx, x + 12, gy, sideW() - 24, 29, general[i], active,
+                    inside(mouseX, mouseY, x + 12, gy, sideW() - 24, 29));
+        }
+
+        // Header.
+        String heading = currentTab.equals(SETTINGS) ? "Settings"
+                : currentTab.equals(THEMES) ? "Appearance"
+                : currentTab.equals(PROFILES) ? "HUD Profiles" : currentTab;
+        String subtitle = currentTab.equals(SETTINGS) ? "Fine-tune how XMCore looks and feels"
+                : currentTab.equals(THEMES) ? "Make the interface feel like yours"
+                : currentTab.equals(PROFILES) ? "Switch between ready-made setups"
+                : "Manage your client modules and visual features";
+        ctx.drawTextWithShadow(textRenderer, heading, sx + 28, y + 24, TEXT);
+        ctx.drawText(textRenderer, subtitle, sx + 28, y + 42, MUTED, false);
+        ctx.drawText(textRenderer, "MAL EKX MINE", x + 20, y + h - 20, MUTED, false);
+        ctx.drawText(textRenderer, "v1.0  •  FABRIC", sx + contentW - 112, y + 27, MUTED, false);
+
+        if (isCategory()) renderModules(ctx, mouseX, mouseY, sx, y, contentW, h);
+        else if (currentTab.equals(SETTINGS)) renderSettings(ctx, mouseX, mouseY, sx, y, contentW);
+        else if (currentTab.equals(THEMES)) renderThemes(ctx, mouseX, mouseY, sx, y, contentW);
+        else renderProfiles(ctx, mouseX, mouseY, sx, y, contentW);
+
+        // Close affordance.
+        boolean closeHover = inside(mouseX, mouseY, x + w - 38, y + 12, 26, 24);
+        ctx.fill(x + w - 38, y + 12, x + w - 12, y + 36, closeHover ? 0xFF573044 : 0xFF252A3B);
+        ctx.drawCenteredTextWithShadow(textRenderer, "×", x + w - 25, y + 18, closeHover ? 0xFFFFA5B5 : TEXT);
+    }
+
+    private boolean isCategory() {
+        return Modules.CATEGORIES.contains(currentTab);
+    }
+
+    private void drawNav(DrawContext ctx, int x, int y, int w, int h, String label, boolean active, boolean hover) {
+        if (active) {
+            ctx.fill(x, y, x + w, y + h, 0xFF292342);
+            ctx.fill(x, y + 5, x + 3, y + h - 5, ACCENT);
+        } else if (hover) {
+            ctx.fill(x, y, x + w, y + h, 0xFF171D2C);
+        }
+        ctx.fill(x + 12, y + 10, x + 18, y + 16, active ? ACCENT : MUTED);
+        ctx.drawText(textRenderer, label, x + 28, y + 10, active ? TEXT : 0xFFB5BDD0, false);
+        if (active) ctx.fill(x + w - 17, y + 12, x + w - 11, y + 18, ACCENT);
+    }
+
+    private void renderModules(DrawContext ctx, int mx, int my, int sx, int y, int w, int h) {
+        int searchX = sx + w - 238;
+        int searchY = y + 66;
+        boolean searchHover = inside(mx, my, searchX, searchY, 210, 30);
+        ctx.fill(searchX, searchY, searchX + 210, searchY + 30, searchFocused ? 0xFF25213B : CARD);
+        ctx.drawText(textRenderer, searchText.isEmpty() ? "⌕  Search modules..." : searchText,
+                searchX + 11, searchY + 10, searchText.isEmpty() ? MUTED : TEXT, false);
+
+        List<Module> modules = filteredModules();
+        long enabled = modules.stream().filter(Module::isEnabled).count();
+        ctx.drawText(textRenderer, modules.size() + " FEATURES", sx + 28, y + 76, MUTED, false);
+        ctx.drawText(textRenderer, enabled + " ENABLED", sx + 128, y + 76, ACCENT, false);
+
+        int gridY = y + 116;
+        int gap = 12;
+        int cardW = (w - 56 - gap) / 2;
+        int cardH = 76;
+        int rows = Math.max(1, (h - 144) / (cardH + gap));
+        int start = scroll * 2;
+        for (int i = start; i < Math.min(modules.size(), start + rows * 2); i++) {
+            Module m = modules.get(i);
+            int col = (i - start) % 2;
+            int row = (i - start) / 2;
+            int cx = sx + 28 + col * (cardW + gap);
+            int cy = gridY + row * (cardH + gap);
+            boolean hover = inside(mx, my, cx, cy, cardW, cardH);
+            boolean on = m.isEnabled();
+            ctx.fill(cx, cy, cx + cardW, cy + cardH, hover ? CARD_HOVER : CARD);
+            ctx.fill(cx, cy, cx + 3, cy + cardH, on ? ACCENT : 0xFF343B50);
+            ctx.fill(cx + 14, cy + 14, cx + 38, cy + 38, on ? 0xFF342A55 : 0xFF252B3B);
+            ctx.drawCenteredTextWithShadow(textRenderer, shortIcon(m.name), cx + 26, cy + 22, on ? ACCENT : MUTED);
+            ctx.drawTextWithShadow(textRenderer, m.name, cx + 48, cy + 13, TEXT);
+            String desc = m.description;
+            int max = Math.max(18, (cardW - 70) / 5);
+            if (desc.length() > max) desc = desc.substring(0, max - 2) + "..";
+            ctx.drawText(textRenderer, desc, cx + 48, cy + 30, MUTED, false);
+            int tx = cx + cardW - 48, ty = cy + 28;
+            ctx.fill(tx, ty, tx + 34, ty + 18, on ? ACCENT_DARK : 0xFF343B50);
+            ctx.fill(on ? tx + 18 : tx + 2, ty + 2, on ? tx + 32 : tx + 16, ty + 16, on ? 0xFFFFFFFF : 0xFF929AAF);
+            ctx.drawText(textRenderer, on ? "ON" : "OFF", cx + cardW - 48, cy + 54, on ? ACCENT : MUTED, false);
+        }
+        if (modules.isEmpty()) ctx.drawText(textRenderer, "No matching modules. Try another search.", sx + 30, gridY + 18, MUTED, false);
+        int maxScroll = Math.max(0, (modules.size() - 1) / 2 - rows + 1);
+        if (maxScroll > 0) {
+            ctx.drawText(textRenderer, "SCROLL  •  " + (scroll + 1) + " / " + (maxScroll + 1),
+                    sx + w - 145, y + h - 24, MUTED, false);
         }
     }
 
-    private void initSettings(int x, int top, int w, int panelH) {
+    private String shortIcon(String name) {
+        if (name.isEmpty()) return "•";
+        return name.substring(0, 1).toUpperCase(Locale.ROOT);
+    }
+
+    private void renderSettings(DrawContext ctx, int mx, int my, int sx, int y, int w) {
         Config c = Config.get();
-        int y = top + 110;
-        int rowW = Math.min(w - 12, 690);
-        addAction(x, y, rowW, "Crosshair shape  •  " + new String[]{"Cross", "Dot", "Circle", "Cross + Dot"}[Math.max(0, Math.min(3, c.crosshairShape))], () -> c.crosshairShape = (c.crosshairShape + 1) % 4); y += 32;
-        addAction(x, y, rowW, "Crosshair size  •  " + c.crosshairSize, () -> c.crosshairSize = c.crosshairSize >= 24 ? 1 : c.crosshairSize + 1); y += 32;
-        addAction(x, y, rowW, "Crosshair gap  •  " + c.crosshairGap, () -> c.crosshairGap = c.crosshairGap >= 12 ? 0 : c.crosshairGap + 1); y += 32;
-        addAction(x, y, rowW, "Crosshair thickness  •  " + c.crosshairThickness, () -> c.crosshairThickness = c.crosshairThickness >= 5 ? 1 : c.crosshairThickness + 1); y += 32;
-        addDrawableChild(ButtonWidget.builder(Text.literal("Swing Speed  •  " + c.swingSpeedTicks + " ticks (1 fast / 20 slow)"), b -> {
-            c.swingSpeedTicks = Math.max(1, c.swingSpeedTicks - 1);
-            Config.save();
-            clearAndInit();
-        }).dimensions(x + 8, y, rowW - 112, 26).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("−"), b -> {
-            c.swingSpeedTicks = Math.max(1, c.swingSpeedTicks - 1);
-            Config.save();
-            clearAndInit();
-        }).dimensions(x + rowW - 96, y, 26, 26).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("+"), b -> {
-            c.swingSpeedTicks = Math.min(20, c.swingSpeedTicks + 1);
-            Config.save();
-            clearAndInit();
-        }).dimensions(x + rowW - 64, y, 26, 26).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Vanilla"), b -> setSwingPreset(6))
-                .dimensions(x + rowW - 34, y, 26, 26).tooltip(Tooltip.of(Text.literal("Vanilla speed"))).build());
-        y += 32;
-        addDrawableChild(ButtonWidget.builder(Text.literal("Slow"), b -> setSwingPreset(20))
-                .dimensions(x + 8, y, 86, 24).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Prestige"), b -> setSwingPreset(3))
-                .dimensions(x + 100, y, 86, 24).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Normal"), b -> setSwingPreset(6))
-                .dimensions(x + 192, y, 86, 24).build());
-        y += 32;
-        addAction(x, y, rowW, "Dynamic crosshair  •  " + (c.crosshairDynamic ? "ON" : "OFF"), () -> c.crosshairDynamic = !c.crosshairDynamic); y += 32;
-        addAction(x, y, rowW, "Crosshair outline  •  " + (c.crosshairOutline ? "ON" : "OFF"), () -> c.crosshairOutline = !c.crosshairOutline); y += 32;
-        addAction(x, y, rowW, "Crosshair colour  •  cycle", () -> c.crosshairColor = c.crosshairColor == 0xFFFFFFFF ? 0xFF55D6FF : c.crosshairColor == 0xFF55D6FF ? 0xFFFFB86B : 0xFFFFFFFF); y += 32;
-        addAction(x, y, rowW, "HUD accent colour  •  cycle", () -> c.accentColor = c.accentColor == 0xFF55D6FF ? 0xFFB78CFF : c.accentColor == 0xFFB78CFF ? 0xFFFFB86B : 0xFF55D6FF); y += 32;
-        addAction(x, y, rowW, "Open HUD Studio — move individual widgets", () -> { Config.save(); if (client != null) client.setScreen(new HudEditorScreen()); }); y += 32;
-        addAction(x, y, rowW, "Reset HUD position", () -> { c.hudX = 4; c.hudY = 4; });
+        int x = sx + 28, yy = y + 82, rw = w - 56;
+        drawSection(ctx, x, yy, "CROSSHAIR STUDIO", "Shape, size and behaviour"); yy += 42;
+        drawSetting(ctx, mx, my, x, yy, rw, "Crosshair shape", new String[]{"Cross", "Dot", "Circle", "Cross + Dot"}[Math.max(0, Math.min(3, c.crosshairShape)]], "Click to change"); yy += 39;
+        drawSetting(ctx, mx, my, x, yy, rw, "Crosshair size", c.crosshairSize + " px", "Click to cycle"); yy += 39;
+        drawSetting(ctx, mx, my, x, yy, rw, "Crosshair gap", c.crosshairGap + " px", "Click to cycle"); yy += 39;
+        drawSetting(ctx, mx, my, x, yy, rw, "Crosshair thickness", c.crosshairThickness + " px", "Click to cycle"); yy += 39;
+        drawSection(ctx, x, yy + 2, "ANIMATION", "Local first-person swing animation"); yy += 43;
+        drawSetting(ctx, mx, my, x, yy, rw, "Swing speed", c.swingSpeedTicks + " ticks", "−   /   +"); yy += 39;
+        drawSetting(ctx, mx, my, x, yy, rw, "Swing preset", c.swingSpeedTicks == 20 ? "Slow" : c.swingSpeedTicks == 3 ? "Prestige" : c.swingSpeedTicks == 6 ? "Vanilla" : "Custom", "Click to cycle"); yy += 39;
+        drawSection(ctx, x, yy + 2, "HUD CUSTOMISATION", "Position and colour"); yy += 43;
+        drawSetting(ctx, mx, my, x, yy, rw, "Dynamic crosshair", c.crosshairDynamic ? "Enabled" : "Disabled", "Click to toggle"); yy += 39;
+        drawSetting(ctx, mx, my, x, yy, rw, "Crosshair outline", c.crosshairOutline ? "Enabled" : "Disabled", "Click to toggle"); yy += 39;
+        drawSetting(ctx, mx, my, x, yy, rw, "Open HUD Studio", "Drag individual widgets", "Click to open");
     }
 
-    private void initThemes(int x, int top, int w) {
-        int y = top + 126;
+    private void drawSection(DrawContext ctx, int x, int y, String title, String sub) {
+        ctx.drawTextWithShadow(textRenderer, title, x, y, ACCENT);
+        ctx.drawText(textRenderer, sub, x + 180, y, MUTED, false);
+    }
+
+    private void drawSetting(DrawContext ctx, int mx, int my, int x, int y, int w, String name, String value, String hint) {
+        boolean hover = inside(mx, my, x, y, w, 32);
+        ctx.fill(x, y, x + w, y + 32, hover ? CARD_HOVER : CARD);
+        ctx.drawText(textRenderer, name, x + 12, y + 11, TEXT, false);
+        ctx.drawText(textRenderer, hint, x + w - 178, y + 11, MUTED, false);
+        ctx.drawText(textRenderer, value, x + w - 90, y + 11, ACCENT, false);
+    }
+
+    private void renderThemes(DrawContext ctx, int mx, int my, int sx, int y, int w) {
+        int x = sx + 28, yy = y + 100, cw = (w - 68) / 2;
         for (int i = 0; i < THEME_NAMES.length; i++) {
-            final int id = i;
-            String label = THEME_NAMES[i] + (Config.get().themeId == i ? "  •  ACTIVE" : "  •  Select theme");
-            addDrawableChild(ButtonWidget.builder(Text.literal(label), b -> {
-                Config.get().themeId = id;
-                Config.save();
-                clearAndInit();
-            }).dimensions(x + 8, y, Math.min(w - 20, 440), 34).build());
-            y += 44;
+            int col = i % 2, row = i / 2;
+            int cx = x + col * (cw + 12), cy = yy + row * 105;
+            boolean active = Config.get().themeId == i;
+            boolean hover = inside(mx, my, cx, cy, cw, 88);
+            int[] t = THEMES[i];
+            ctx.fill(cx, cy, cx + cw, cy + 88, hover ? CARD_HOVER : CARD);
+            ctx.fill(cx + 12, cy + 12, cx + cw - 12, cy + 52, t[2]);
+            ctx.fill(cx + 20, cy + 20, cx + 44, cy + 44, t[4]);
+            ctx.fill(cx + 52, cy + 20, cx + 76, cy + 44, t[1]);
+            ctx.fill(cx + 84, cy + 20, cx + 108, cy + 44, t[3]);
+            ctx.drawTextWithShadow(textRenderer, THEME_NAMES[i], cx + 14, cy + 65, TEXT);
+            ctx.drawText(textRenderer, active ? "ACTIVE" : "SELECT", cx + cw - 62, cy + 65, active ? ACCENT : MUTED, false);
+            if (active) ctx.fill(cx, cy, cx + 3, cy + 88, ACCENT);
         }
     }
 
-    private void initProfiles(int x, int top, int w) {
-        int y = top + 126;
-        addDrawableChild(ButtonWidget.builder(Text.literal("PvP  •  Combat HUD, crosshair, keystrokes and performance"), b -> applyProfile("pvp"))
-                .dimensions(x + 8, y, Math.min(w - 20, 560), 34).build());
-        y += 44;
-        addDrawableChild(ButtonWidget.builder(Text.literal("Clean  •  Minimal FPS, coordinates and keystrokes"), b -> applyProfile("clean"))
-                .dimensions(x + 8, y, Math.min(w - 20, 560), 34).build());
-        y += 44;
-        addDrawableChild(ButtonWidget.builder(Text.literal("Builder  •  Coordinates, world time and held item"), b -> applyProfile("builder"))
-                .dimensions(x + 8, y, Math.min(w - 20, 560), 34).build());
+    private void renderProfiles(DrawContext ctx, int mx, int my, int sx, int y, int w) {
+        String[] names = {"PvP", "Clean", "Builder"};
+        String[] desc = {"Combat HUD, crosshair, keystrokes and performance", "Minimal FPS, coordinates and keystrokes", "Coordinates, world time, held item and FPS"};
+        int x = sx + 28, yy = y + 104, cw = w - 56;
+        for (int i = 0; i < names.length; i++) {
+            int cy = yy + i * 94;
+            boolean hover = inside(mx, my, x, cy, cw, 78);
+            ctx.fill(x, cy, x + cw, cy + 78, hover ? CARD_HOVER : CARD);
+            ctx.fill(x, cy, x + 3, cy + 78, ACCENT);
+            ctx.drawTextWithShadow(textRenderer, names[i], x + 18, cy + 17, TEXT);
+            ctx.drawText(textRenderer, desc[i], x + 18, cy + 37, MUTED, false);
+            ctx.drawText(textRenderer, "APPLY  ›", x + cw - 76, cy + 29, ACCENT, false);
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(Click click, boolean doubled) {
+        double mx = click.x(), my = click.y();
+        if (click.button() != 0) return super.mouseClicked(click, doubled);
+        int x = left(), y = top(), w = panelW(), h = panelH(), sx = x + sideW();
+        if (inside(mx, my, x + w - 38, y + 12, 26, 24)) { close(); return true; }
+
+        int navY = y + 108;
+        for (String category : Modules.CATEGORIES) {
+            if (inside(mx, my, x + 12, navY, sideW() - 24, 31)) { selectTab(category); return true; }
+            navY += 36;
+        }
+        int generalY = y + h - 150;
+        String[] general = {SETTINGS, THEMES, PROFILES};
+        for (int i = 0; i < general.length; i++) {
+            int gy = generalY + 20 + i * 34;
+            if (inside(mx, my, x + 12, gy, sideW() - 24, 29)) { selectTab(general[i]); return true; }
+        }
+
+        if (isCategory()) {
+            int searchX = sx + mainW() - 238, searchY = y + 66;
+            if (inside(mx, my, searchX, searchY, 210, 30)) { searchFocused = true; return true; }
+            searchFocused = false;
+            List<Module> modules = filteredModules();
+            int gridY = y + 116, gap = 12, cardW = (mainW() - 56 - gap) / 2, cardH = 76;
+            int rows = Math.max(1, (h - 144) / (cardH + gap));
+            int start = scroll * 2;
+            for (int i = start; i < Math.min(modules.size(), start + rows * 2); i++) {
+                int col = (i - start) % 2, row = (i - start) / 2;
+                int cx = sx + 28 + col * (cardW + gap), cy = gridY + row * (cardH + gap);
+                if (inside(mx, my, cx, cy, cardW, cardH)) {
+                    modules.get(i).toggle();
+                    Config.save();
+                    return true;
+                }
+            }
+            return true;
+        }
+
+        if (currentTab.equals(THEMES)) {
+            int tx = sx + 28, ty = y + 100, cw = (mainW() - 68) / 2;
+            for (int i = 0; i < THEME_NAMES.length; i++) {
+                int cx = tx + (i % 2) * (cw + 12), cy = ty + (i / 2) * 105;
+                if (inside(mx, my, cx, cy, cw, 88)) {
+                    Config.get().themeId = i; Config.save(); return true;
+                }
+            }
+        } else if (currentTab.equals(PROFILES)) {
+            int px = sx + 28, py = y + 104, cw = mainW() - 56;
+            for (int i = 0; i < 3; i++) if (inside(mx, my, px, py + i * 94, cw, 78)) {
+                applyProfile(i == 0 ? "pvp" : i == 1 ? "clean" : "builder"); return true;
+            }
+        } else if (currentTab.equals(SETTINGS)) {
+            handleSettingsClick(mx, my, sx, y, mainW());
+            return true;
+        }
+        return true;
+    }
+
+    private void handleSettingsClick(double mx, double my, int sx, int y, int w) {
+        Config c = Config.get();
+        int x = sx + 28, yy = y + 82, rw = w - 56;
+        if (inside(mx, my, x, yy + 42, rw, 32)) c.crosshairShape = (c.crosshairShape + 1) % 4;
+        else if (inside(mx, my, x, yy + 81, rw, 32)) c.crosshairSize = c.crosshairSize >= 24 ? 1 : c.crosshairSize + 1;
+        else if (inside(mx, my, x, yy + 120, rw, 32)) c.crosshairGap = c.crosshairGap >= 12 ? 0 : c.crosshairGap + 1;
+        else if (inside(mx, my, x, yy + 159, rw, 32)) c.crosshairThickness = c.crosshairThickness >= 5 ? 1 : c.crosshairThickness + 1;
+        else if (inside(mx, my, x, yy + 244, rw, 32)) c.swingSpeedTicks = Math.min(20, c.swingSpeedTicks + 1);
+        else if (inside(mx, my, x, yy + 283, rw, 32)) c.swingSpeedTicks = c.swingSpeedTicks == 20 ? 6 : c.swingSpeedTicks == 6 ? 3 : 20;
+        else if (inside(mx, my, x, yy + 365, rw, 32)) c.crosshairDynamic = !c.crosshairDynamic;
+        else if (inside(mx, my, x, yy + 404, rw, 32)) c.crosshairOutline = !c.crosshairOutline;
+        else if (inside(mx, my, x, yy + 443, rw, 32) && client != null) {
+            Config.save(); client.setScreen(new HudEditorScreen()); return;
+        }
+        Config.save();
     }
 
     private void applyProfile(String profile) {
@@ -199,83 +368,40 @@ public class ConfigScreen extends Screen {
             for (String id : List.of("coordinates", "world_time", "held_item", "fps_counter")) c.modules.put(id, true);
         }
         Config.save();
-        clearAndInit();
-    }
-
-    private void setSwingPreset(int ticks) {
-        Config.get().swingSpeedTicks = ticks;
-        Config.save();
-        clearAndInit();
-    }
-
-    private void addAction(int x, int y, int w, String label, Runnable action) {
-        addDrawableChild(ButtonWidget.builder(Text.literal(label), btn -> {
-            action.run();
-            Config.save();
-            clearAndInit();
-        }).dimensions(x + 8, y, w, 26).build());
     }
 
     @Override
-    public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
-        int[] p = palette();
-        int panelW = Math.min(980, width - 32);
-        int panelH = Math.min(590, height - 24);
-        int left = (width - panelW) / 2;
-        int top = (height - panelH) / 2;
-        int sideW = Math.max(150, Math.min(178, panelW / 5));
-        int mainX = left + sideW;
-        int mainW = panelW - sideW;
-
-        ctx.fill(0, 0, width, height, p[0]);
-        ctx.fill(left, top, left + panelW, top + panelH, p[1]);
-        ctx.fill(mainX, top + 2, left + panelW - 2, top + panelH - 2, p[2]);
-        ctx.fill(left + 12, top + 17, left + 19, top + 24, p[4]);
-        ctx.drawTextWithShadow(textRenderer, "XMCore", left + 27, top + 15, p[5]);
-        ctx.drawText(textRenderer, "XMCORE  •  CLIENT MENU", left + 15, top + 48, p[6], false);
-        ctx.drawText(textRenderer, "MODULES", left + 15, top + 78, p[6], false);
-        ctx.drawText(textRenderer, "GENERAL", left + 15, top + panelH - 137, p[6], false);
-
-        String heading = currentTab.equals(SETTINGS_TAB) ? "Settings" : currentTab.equals(THEMES_TAB) ? "Themes" : currentTab.equals(PROFILES_TAB) ? "HUD Profiles" : currentTab + " Modules";
-        ctx.drawTextWithShadow(textRenderer, heading, mainX + 18, top + 18, p[5]);
-        String subtitle = currentTab.equals(THEMES_TAB) ? "Choose the look of your client" : currentTab.equals(PROFILES_TAB) ? "Quickly switch between saved feature setups" : "Manage and customise your client features";
-        ctx.drawText(textRenderer, subtitle, mainX + 18, top + 34, p[6], false);
-
-        if (!SETTINGS_TAB.equals(currentTab) && !THEMES_TAB.equals(currentTab)) {
-            List<Module> list = filteredModules();
-            long enabled = list.stream().filter(Module::isEnabled).count();
-            ctx.drawText(textRenderer, list.size() + " modules  •  " + enabled + " enabled", mainX + 18, top + 83, p[6], false);
-            int y = top + 116;
-            for (Module module : list) {
-                if (y > top + panelH - 40) break;
-                int right = left + panelW - 13;
-                ctx.fill(mainX + 8, y, right, y + 40, p[3]);
-                ctx.drawTextWithShadow(textRenderer, module.name, mainX + 22, y + 6, p[5]);
-                String desc = module.description;
-                int max = Math.max(22, (mainW - 145) / 5);
-                if (desc.length() > max) desc = desc.substring(0, max - 3) + "...";
-                ctx.drawText(textRenderer, desc, mainX + 22, y + 22, p[6], false);
-                ctx.drawText(textRenderer, "›", right - 88, y + 13, p[6], false);
-                ctx.fill(right - 35, y + 14, right - 13, y + 27, module.isEnabled() ? p[4] : p[6]);
-                y += 45;
-            }
-            if (list.isEmpty()) ctx.drawText(textRenderer, "No modules found", mainX + 22, top + 135, p[6], false);
-        } else if (THEMES_TAB.equals(currentTab)) {
-            ctx.drawText(textRenderer, "AVAILABLE THEMES", mainX + 18, top + 88, p[6], false);
-            int y = top + 116;
-            for (int i = 0; i < THEMES.length; i++) {
-                int[] theme = THEMES[i];
-                ctx.fill(mainX + 8, y, left + panelW - 13, y + 36, theme[3]);
-                ctx.fill(mainX + 20, y + 10, mainX + 40, y + 26, theme[4]);
-                ctx.drawText(textRenderer, THEME_NAMES[i], mainX + 51, y + 14, theme[5], false);
-                if (Config.get().themeId == i) ctx.drawText(textRenderer, "ACTIVE", left + panelW - 75, y + 14, theme[4], false);
-                y += 45;
-            }
-        } else {
-            ctx.drawText(textRenderer, "CLIENT PREFERENCES", mainX + 18, top + 88, p[6], false);
+    public boolean charTyped(char chr, int modifiers) {
+        if (searchFocused && isCategory() && !Character.isISOControl(chr)) {
+            searchText += chr;
+            scroll = 0;
+            return true;
         }
+        return super.charTyped(chr, modifiers);
+    }
 
-        super.render(ctx, mouseX, mouseY, delta);
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (searchFocused && isCategory()) {
+            if (keyCode == GLFW.GLFW_KEY_BACKSPACE && !searchText.isEmpty()) {
+                searchText = searchText.substring(0, searchText.length() - 1);
+                scroll = 0;
+                return true;
+            }
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE) { searchFocused = false; return true; }
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (isCategory()) {
+            int rows = Math.max(1, (panelH() - 144) / 88);
+            int max = Math.max(0, (filteredModules().size() - 1) / 2 - rows + 1);
+            scroll = Math.max(0, Math.min(max, scroll + (verticalAmount < 0 ? 1 : -1)));
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
 
     @Override
@@ -285,7 +411,5 @@ public class ConfigScreen extends Screen {
     }
 
     @Override
-    public boolean shouldPause() {
-        return false;
-    }
+    public boolean shouldPause() { return false; }
 }
