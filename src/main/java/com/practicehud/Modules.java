@@ -117,6 +117,9 @@ public final class Modules {
         add("coordinates", "Coordinates HUD", CAT_VISUAL, "Displays current X, Y and Z coordinates.", Modules::coordinatesHud);
         add("armor_status", "Armor Status", CAT_VISUAL, "Displays equipped armour durability.", Modules::armorStatusHud);
         add("potion_hud", "Potion HUD", CAT_VISUAL, "Displays active potion effects and duration.", Modules::potionStatusHud);
+        add("keystrokes", "Keystrokes", CAT_VISUAL, "Shows WASD, jump, sneak and sprint key states.", Modules::keystrokesHud);
+        add("held_item", "Held Item HUD", CAT_VISUAL, "Shows the held item name, count and durability.", Modules::heldItemHud);
+        add("world_time", "World Time", CAT_VISUAL, "Displays the current local world time.", Modules::worldTimeHud);
     }
 
     // =====================================================================
@@ -254,6 +257,40 @@ public final class Modules {
             rows.add(Row.of(effectName(effect) + " " + Hud.time(effect.getDuration()), Hud.WHITE));
         if (rows.isEmpty()) rows.add(Row.of("No active effects", Hud.GRAY));
         Hud.panel(ctx, "Potion Effects", Hud.AQUA, rows.toArray(new Row[0]));
+    }
+
+    private static void keystrokesHud(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        Hud.panel(ctx, "Keystrokes", Hud.AQUA,
+                Row.of((mc.options.forwardKey.isPressed() ? "[W]" : " W ") + " " +
+                        (mc.options.leftKey.isPressed() ? "[A]" : " A ") + " " +
+                        (mc.options.backKey.isPressed() ? "[S]" : " S ") + " " +
+                        (mc.options.rightKey.isPressed() ? "[D]" : " D "), Hud.WHITE),
+                Row.of("Jump " + (mc.options.jumpKey.isPressed() ? "ON" : "OFF") +
+                        "  Sneak " + (mc.options.sneakKey.isPressed() ? "ON" : "OFF") +
+                        "  Sprint " + (mc.options.sprintKey.isPressed() ? "ON" : "OFF"), Hud.WHITE));
+    }
+
+    private static void heldItemHud(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        ItemStack stack = p.getMainHandStack();
+        if (stack.isEmpty()) {
+            Hud.panel(ctx, "Held Item", Hud.AQUA, Row.of("Empty hand", Hud.GRAY));
+            return;
+        }
+        List<Row> rows = new ArrayList<>();
+        rows.add(Row.of(stack.getName().getString() + " x" + stack.getCount(), Hud.WHITE));
+        if (stack.isDamageable()) {
+            float f = durabilityFrac(stack);
+            rows.add(Row.bar("Durability: " + (stack.getMaxDamage() - stack.getDamage()) + "/" + stack.getMaxDamage(), f, fracColor(f)));
+        }
+        Hud.panel(ctx, "Held Item", Hud.AQUA, rows.toArray(new Row[0]));
+    }
+
+    private static void worldTimeHud(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        long dayTime = mc.world.getTimeOfDay() % 24000L;
+        int hours = (int) ((dayTime / 1000 + 6) % 24);
+        int minutes = (int) ((dayTime % 1000) * 60 / 1000);
+        Hud.panel(ctx, "World Time", Hud.AQUA,
+                Row.of(String.format("%02d:%02d", hours, minutes), Hud.WHITE));
     }
 
     // =====================================================================
