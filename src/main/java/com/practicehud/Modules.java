@@ -791,7 +791,7 @@ public final class Modules {
         int cy = ctx.getScaledWindowHeight() / 2;
         Hud.centered(ctx, String.format("%.2f", d), cx, cy + 12, d <= 3.0 ? Hud.GREEN : d <= 4.5 ? Hud.YELLOW : Hud.RED);
     }
-}    private static void crystalAssist(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+    private static void crystalAssist(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
         int crystals = count(p, Items.END_CRYSTAL);
         String target = "No block targeted";
         if (mc.crosshairTarget instanceof BlockHitResult hit && hit.getType() == HitResult.Type.BLOCK) {
@@ -857,5 +857,4 @@ public final class Modules {
                 Row.of(name, Hud.WHITE),
                 Row.of("Block: " + id, Hud.GRAY));
     }
-
-
+}
