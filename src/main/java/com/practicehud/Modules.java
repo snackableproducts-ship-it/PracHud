@@ -69,7 +69,7 @@ public final class Modules {
                 "Shows charge level and blast size of the respawn anchor you look at.", Modules::anchorMeter);
 
         // ---- Combat ----
-        add("reticle", "Custom Crosshair", CAT_COMBAT,
+        add("reticle", "Custom Crosshair", CAT_VISUAL,
                 "Replaces the crosshair (shape/size/colour in settings). Changes colour over a target in reach.", null);
         add("target_ring", "Target Tracking Ring", CAT_COMBAT,
                 "A static ring at screen centre for aim practice.", Modules::targetRing);
