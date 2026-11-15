@@ -6,7 +6,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
-import net.minecraft.util.Registries;
+import net.minecraft.registry.Registries;
 
 import java.util.Locale;
 
