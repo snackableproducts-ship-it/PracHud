@@ -14,6 +14,7 @@ import java.util.Locale;
 public class ConfigScreen extends Screen {
     private static final String SETTINGS_TAB = "Settings";
     private static final String THEMES_TAB = "Themes";
+    private static final String PROFILES_TAB = "Profiles";
     private static String currentTab = Modules.CAT_VISUAL;
     private static String searchText = "";
 
@@ -69,6 +70,10 @@ public class ConfigScreen extends Screen {
             currentTab = THEMES_TAB;
             clearAndInit();
         }).dimensions(left + 12, generalY + 29, sideW - 24, 24).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Profiles"), b -> {
+            currentTab = PROFILES_TAB;
+            clearAndInit();
+        }).dimensions(left + 12, generalY + 58, sideW - 24, 24).build());
 
         if (!SETTINGS_TAB.equals(currentTab) && !THEMES_TAB.equals(currentTab)) {
             searchField = new TextFieldWidget(textRenderer, mainX + mainW - 205, top + 47,
@@ -170,6 +175,33 @@ public class ConfigScreen extends Screen {
         }
     }
 
+    private void initProfiles(int x, int top, int w) {
+        int y = top + 126;
+        addDrawableChild(ButtonWidget.builder(Text.literal("PvP  •  Combat HUD, crosshair, keystrokes and performance"), b -> applyProfile("pvp"))
+                .dimensions(x + 8, y, Math.min(w - 20, 560), 34).build());
+        y += 44;
+        addDrawableChild(ButtonWidget.builder(Text.literal("Clean  •  Minimal FPS, coordinates and keystrokes"), b -> applyProfile("clean"))
+                .dimensions(x + 8, y, Math.min(w - 20, 560), 34).build());
+        y += 44;
+        addDrawableChild(ButtonWidget.builder(Text.literal("Builder  •  Coordinates, world time and held item"), b -> applyProfile("builder"))
+                .dimensions(x + 8, y, Math.min(w - 20, 560), 34).build());
+    }
+
+    private void applyProfile(String profile) {
+        Config c = Config.get();
+        c.modules.replaceAll((id, enabled) -> false);
+        if ("pvp".equals(profile)) {
+            for (String id : List.of("reticle", "swing_speed", "guard_timing", "netherite_hud",
+                    "keystrokes", "fps_counter", "coordinates", "armor_status")) c.modules.put(id, true);
+        } else if ("clean".equals(profile)) {
+            for (String id : List.of("fps_counter", "coordinates", "keystrokes")) c.modules.put(id, true);
+        } else {
+            for (String id : List.of("coordinates", "world_time", "held_item", "fps_counter")) c.modules.put(id, true);
+        }
+        Config.save();
+        clearAndInit();
+    }
+
     private void setSwingPreset(int ticks) {
         Config.get().swingSpeedTicks = ticks;
         Config.save();
@@ -204,9 +236,9 @@ public class ConfigScreen extends Screen {
         ctx.drawText(textRenderer, "MODULES", left + 15, top + 78, p[6], false);
         ctx.drawText(textRenderer, "GENERAL", left + 15, top + panelH - 137, p[6], false);
 
-        String heading = currentTab.equals(SETTINGS_TAB) ? "Settings" : currentTab.equals(THEMES_TAB) ? "Themes" : currentTab + " Modules";
+        String heading = currentTab.equals(SETTINGS_TAB) ? "Settings" : currentTab.equals(THEMES_TAB) ? "Themes" : currentTab.equals(PROFILES_TAB) ? "HUD Profiles" : currentTab + " Modules";
         ctx.drawTextWithShadow(textRenderer, heading, mainX + 18, top + 18, p[5]);
-        String subtitle = currentTab.equals(THEMES_TAB) ? "Choose the look of your client" : "Manage and customise your client features";
+        String subtitle = currentTab.equals(THEMES_TAB) ? "Choose the look of your client" : currentTab.equals(PROFILES_TAB) ? "Quickly switch between saved feature setups" : "Manage and customise your client features";
         ctx.drawText(textRenderer, subtitle, mainX + 18, top + 34, p[6], false);
 
         if (!SETTINGS_TAB.equals(currentTab) && !THEMES_TAB.equals(currentTab)) {
