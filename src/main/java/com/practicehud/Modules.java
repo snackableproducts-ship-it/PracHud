@@ -37,12 +37,13 @@ public final class Modules {
     public static final String CAT_COMBAT = "Combat";
     public static final String CAT_MACE = "Mace & Wind";
     public static final String CAT_CART = "Minecart & Redstone";
-    public static final String CAT_UTIL = "Utility";
+    public static final String CAT_UTIL = "Spear & Utility";
+    public static final String CAT_UHC = "UHC / Nethpot";
     public static final String CAT_VISUAL = "Visuals";
     public static final String CAT_AMBIENCE = "Ambience";
     public static final String CAT_DONUT = "DonutSMP";
 
-    public static final List<String> CATEGORIES = List.of(CAT_CRYSTAL, CAT_COMBAT, CAT_MACE, CAT_CART, CAT_UTIL, CAT_VISUAL, CAT_DONUT, CAT_AMBIENCE);
+    public static final List<String> CATEGORIES = List.of(CAT_CRYSTAL, CAT_COMBAT, CAT_MACE, CAT_CART, CAT_UTIL, CAT_UHC, CAT_VISUAL, CAT_DONUT, CAT_AMBIENCE);
     public static final List<Module> ALL = new ArrayList<>();
 
     // Smoothed minecart velocities (blocks per tick), measured from client positions.
@@ -71,17 +72,35 @@ public final class Modules {
     }
 
     static {
-        // ---- Crystal & Respawn ----
-        add("totem_status", "Totem Status", CAT_CRYSTAL,
-                "Totem count and whether your offhand holds one.", Modules::totemStatus);
-        add("anchor_meter", "Respawn Anchor Meter", CAT_CRYSTAL,
-                "Shows charge level and blast size of the respawn anchor you look at.", Modules::anchorMeter);
+        // ---- Crystal ----
+        add("crystal_assist", "Crystal Assist", CAT_CRYSTAL,
+                "Shows crystal supplies and the block you are targeting.", Modules::crystalAssist);
+        add("crystal_combo", "Crystal Combo", CAT_CRYSTAL,
+                "Displays crystal and obsidian counts for setup awareness.", Modules::crystalCombo);
+        add("totem_manager", "Totem Manager", CAT_CRYSTAL,
+                "Tracks totem count and offhand status; switching remains manual.", Modules::totemStatus);
+        add("anchor_assist", "Anchor Assist", CAT_CRYSTAL,
+                "Displays respawn-anchor charge information when targeted.", Modules::anchorMeter);
+        add("anchor_safety", "Anchor Safety", CAT_CRYSTAL,
+                "Shows a caution status when viewing a charged anchor.", Modules::anchorSafety);
+        add("elytra_assist", "Elytra Assist", CAT_CRYSTAL,
+                "Displays elytra equipped state, durability and glide speed.", Modules::elytraHud);
+        add("obsidian_assist", "Obsidian Assist", CAT_CRYSTAL,
+                "Tracks obsidian and end-crystal supplies.", Modules::crystalCombo);
+        add("pearl_assist", "Pearl Assist", CAT_CRYSTAL,
+                "Shows ender-pearl count and predicted landing point.", Modules::pearlAssist);
 
         // ---- Combat ----
         add("reticle", "Custom Crosshair", CAT_VISUAL,
                 "Replaces the crosshair (shape/size/colour in settings). Changes colour over a target in reach.", null);
         add("target_ring", "Target Tracking Ring", CAT_COMBAT,
                 "A static ring at screen centre for aim practice.", Modules::targetRing);
+        add("combat_assist", "Combat Assist", CAT_COMBAT,
+                "Displays information about the entity under your crosshair.", Modules::entityInfo);
+        add("sprint_assist", "Sprint Assist", CAT_COMBAT,
+                "Displays sprint state and movement speed; does not automate inputs.", Modules::sprintIndicator);
+        add("shield_assist", "Shield Assist", CAT_COMBAT,
+                "Displays shield durability, blocking state and cooldown.", Modules::shieldStatus);
         add("distance", "Combat Distance Counter", CAT_COMBAT,
                 "Distance in blocks to the mob or player under your crosshair (up to 64).", Modules::distanceCounter);
         add("sprint", "Sprint Indicator", CAT_COMBAT,
@@ -108,18 +127,36 @@ public final class Modules {
                 "Vertical speed in blocks/second.", Modules::jumpGauge);
         add("elytra", "Elytra HUD", CAT_MACE,
                 "Pitch, speed and elytra durability while gliding.", Modules::elytraHud);
+        add("mace_assist", "Mace Assist", CAT_MACE,
+                "Shows mace readiness and fall-distance information.", Modules::maceHeight);
+        add("mace_guide", "Mace Guide", CAT_MACE,
+                "Displays fall distance and estimated mace bonus damage.", Modules::maceHeight);
+        add("wind_assist", "Wind Assist", CAT_MACE,
+                "Shows step-by-step wind-charge and mace practice prompts.", Modules::windTrainer);
+        add("pearl_boost_info", "Pearl Boost Guide", CAT_MACE,
+                "Displays pearl and wind-charge inventory counts.", Modules::pearlAssist);
+        add("wind_boost_info", "Wind Boost Guide", CAT_MACE,
+                "Displays wind-charge count and vertical movement speed.", Modules::windGuide);
 
         // ---- Minecart & Redstone ----
         add("cart_speed", "Minecart Speedometer", CAT_CART,
                 "Speed and heading of the three nearest minecarts.", Modules::cartSpeedometer);
         add("rail_counter", "Inventory Rail Counter", CAT_CART,
                 "Rails, minecarts and redstone in your inventory.", Modules::railCounter);
+        add("cart_assist", "Cart Assist", CAT_CART,
+                "Shows nearby minecart distance and speed.", Modules::cartSpeedometer);
+        add("cart_safety", "Cart Safety", CAT_CART,
+                "Displays TNT minecart and protective-block supplies.", Modules::cartSafety);
+        add("cart_manager", "Cart Manager", CAT_CART,
+                "Tracks minecart, TNT and rail supplies.", Modules::railCounter);
 
         // ---- Utility ----
         add("throw_calc", "Throw Landing Calculator", CAT_UTIL,
                 "Predicts where an ender pearl, snowball, egg or splash potion will land from your aim.", Modules::throwCalc);
         add("reach", "Interaction Distance", CAT_UTIL,
                 "Distance to the block or entity you are targeting.", Modules::reachReadout);
+        add("spear_assist", "Spear Assist", CAT_UTIL,
+                "Displays held spear name and durability.", Modules::heldItemHud);
 
         // ---- Visuals ----
         add("swing_speed", "Swing Speed", CAT_VISUAL,
@@ -134,6 +171,23 @@ public final class Modules {
         add("fps_graph", "FPS Graph", CAT_VISUAL, "Shows a rolling graph of recent client frame rates.", Modules::fpsGraph);
         add("session_stats", "Session Stats", CAT_VISUAL, "Shows session duration, movement distance and current FPS.", Modules::sessionStats);
         add("target_hud", "Target HUD", CAT_VISUAL, "Shows the name and health of the entity under your crosshair.", Modules::entityInfo);
+        add("entity_display", "Entity Display", CAT_VISUAL, "Shows name, health and effects for your current target.", Modules::entityInfo);
+        add("storage_display", "Storage Display", CAT_VISUAL, "Identifies the storage block you are looking at.", Modules::storageDisplay);
+        add("projectile_guide", "Projectile Guide", CAT_VISUAL, "Shows the predicted path and landing point of held projectiles.", Modules::throwCalc);
+        add("target_highlight", "Target Highlight", CAT_VISUAL, "Adds a target ring and target information.", Modules::targetRing);
+        add("animation_settings", "Animation Settings", CAT_VISUAL, "Uses the XMCore swing-speed setting for local hand animation.", null);
+        add("crosshair_settings", "Crosshair Settings", CAT_VISUAL, "Uses the XMCore crosshair customisation settings.", null);
+        add("name_display", "Name Display", CAT_VISUAL, "Displays the name and health of the entity under your crosshair.", Modules::entityInfo);
+
+        // ---- UHC / Nethpot ----
+        add("potion_assist", "Potion Assist", CAT_UHC,
+                "Displays active potion effects and durations.", Modules::potionStatusHud);
+        add("potion_manager", "Potion Manager", CAT_UHC,
+                "Counts useful potions in your inventory.", Modules::potionInventory);
+        add("sprint_uhc", "Sprint Assist", CAT_UHC,
+                "Displays sprint state and movement speed.", Modules::sprintIndicator);
+        add("nethpot_settings", "Nethpot Settings", CAT_UHC,
+                "Shows health, armour and active effects for Nethpot awareness.", Modules::combatHud);
 
         // ---- DonutSMP: each tool has its own toggle ----
         add("donut_balance", "Balance HUD", CAT_DONUT,
@@ -737,4 +791,71 @@ public final class Modules {
         int cy = ctx.getScaledWindowHeight() / 2;
         Hud.centered(ctx, String.format("%.2f", d), cx, cy + 12, d <= 3.0 ? Hud.GREEN : d <= 4.5 ? Hud.YELLOW : Hud.RED);
     }
-}
+}    private static void crystalAssist(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        int crystals = count(p, Items.END_CRYSTAL);
+        String target = "No block targeted";
+        if (mc.crosshairTarget instanceof BlockHitResult hit && hit.getType() == HitResult.Type.BLOCK) {
+            target = mc.world.getBlockState(hit.getBlockPos()).getBlock().getName().getString();
+        }
+        Hud.panel(ctx, "Crystal Assist", Hud.AQUA,
+                Row.of("End crystals: " + crystals, crystals > 0 ? Hud.GREEN : Hud.RED),
+                Row.of("Target: " + target, Hud.WHITE));
+    }
+
+    private static void crystalCombo(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        Hud.panel(ctx, "Crystal Setup", Hud.AQUA,
+                Row.of("Crystals: " + count(p, Items.END_CRYSTAL), Hud.WHITE),
+                Row.of("Obsidian: " + count(p, Items.OBSIDIAN), Hud.WHITE));
+    }
+
+    private static void pearlAssist(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        Hud.panel(ctx, "Pearl Assist", Hud.AQUA,
+                Row.of("Pearls: " + count(p, Items.ENDER_PEARL),
+                        count(p, Items.ENDER_PEARL) > 0 ? Hud.GREEN : Hud.RED));
+    }
+
+    private static void windGuide(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        Hud.panel(ctx, "Wind Guide", Hud.AQUA,
+                Row.of("Wind charges: " + count(p, Items.WIND_CHARGE), Hud.WHITE),
+                Row.of(String.format("Vertical speed: %+.1f b/s", p.getVelocity().y * 20.0), Hud.WHITE));
+    }
+
+    private static void anchorSafety(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        if (!(mc.crosshairTarget instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK) return;
+        BlockState state = mc.world.getBlockState(hit.getBlockPos());
+        if (!state.isOf(Blocks.RESPAWN_ANCHOR)) return;
+        int charges = state.get(RespawnAnchorBlock.CHARGES);
+        Hud.panel(ctx, "Anchor Safety", charges > 0 ? Hud.RED : Hud.GREEN,
+                Row.of(charges > 0 ? "Caution: anchor is charged" : "Anchor is not charged",
+                        charges > 0 ? Hud.RED : Hud.GREEN),
+                Row.of("Dimension: " + mc.world.getRegistryKey().getValue().getPath(), Hud.GRAY));
+    }
+
+    private static void cartSafety(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        Hud.panel(ctx, "Cart Safety", Hud.GOLD,
+                Row.of("TNT minecarts: " + count(p, Items.TNT_MINECART), Hud.WHITE),
+                Row.of("Obsidian: " + count(p, Items.OBSIDIAN), Hud.WHITE),
+                Row.of("Building blocks: " + count(p, Items.OBSIDIAN, Items.COBBLESTONE, Items.DEEPSLATE), Hud.WHITE));
+    }
+
+    private static void potionInventory(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        Hud.panel(ctx, "Potion Supplies", Hud.AQUA,
+                Row.of("Splash potions: " + count(p, Items.SPLASH_POTION), Hud.WHITE),
+                Row.of("Lingering potions: " + count(p, Items.LINGERING_POTION), Hud.WHITE),
+                Row.of("Drinkable potions: " + count(p, Items.POTION), Hud.WHITE));
+    }
+
+    private static void storageDisplay(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        if (!(mc.crosshairTarget instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK) return;
+        BlockState state = mc.world.getBlockState(hit.getBlockPos());
+        String name = state.getBlock().getName().getString();
+        String id = net.minecraft.registry.Registries.BLOCK.getId(state.getBlock()).getPath();
+        if (!(id.contains("chest") || id.contains("barrel") || id.contains("shulker_box")
+                || id.contains("hopper") || id.contains("furnace") || id.contains("dispenser")
+                || id.contains("dropper") || id.contains("ender_chest"))) return;
+        Hud.panel(ctx, "Storage Display", Hud.AQUA,
+                Row.of(name, Hud.WHITE),
+                Row.of("Block: " + id, Hud.GRAY));
+    }
+
+
