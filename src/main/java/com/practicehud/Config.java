@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.HashMap;
 
 /** Persistent settings, stored as JSON in the Fabric config directory. */
 public final class Config {
@@ -35,6 +36,8 @@ public final class Config {
     // Shared HUD anchor and scale, editable in the HUD editor.
     public int hudX = 4;
     public int hudY = 4;
+    // Per-widget HUD positions keyed by panel title, stored as [x, y].
+    public Map<String, int[]> hudPositions = new HashMap<>();
     public double hudScale = 1.0;
     public int accentColor = 0xFF55D6FF;
 
@@ -63,8 +66,9 @@ public final class Config {
                 Config c = GSON.fromJson(Files.readString(p), Config.class);
                 if (c != null) {
                     if (c.modules == null) c.modules = new LinkedHashMap<>();
+                    if (c.hudPositions == null) c.hudPositions = new HashMap<>();
                     if (c.quickSlots == null || c.quickSlots.length != 4) c.quickSlots = new int[]{0, 1, 2, 3};
-                    if (c.swingSpeedTicks < 1 || c.swingSpeedTicks > 10) c.swingSpeedTicks = 3;
+                    if (c.swingSpeedTicks < 1 || c.swingSpeedTicks > 20) c.swingSpeedTicks = 6;
                     c.hudScale = Math.max(0.75, Math.min(1.5, c.hudScale));
                     instance = c;
                 }
