@@ -16,7 +16,7 @@ public abstract class LivingEntitySwingMixin {
         if ((Object) this instanceof ClientPlayerEntity
                 && Config.get().modules.getOrDefault("swing_speed", false)) {
             int duration = Config.get().swingSpeedTicks;
-            cir.setReturnValue(Math.max(1, Math.min(10, duration)));
+            cir.setReturnValue(Math.max(1, Math.min(20, duration)));
         }
     }
 }
