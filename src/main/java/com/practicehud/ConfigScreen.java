@@ -366,11 +366,11 @@ public class ConfigScreen extends Screen {
         else if (inside(mx, my, x, yy + 404, rw, 32)) c.crosshairOutline = !c.crosshairOutline;
         else if (inside(mx, my, x, yy + 443, rw, 32) && client != null) {
             Config.save(); client.setScreen(new HudEditorScreen()); return;
-        } else if (inside(mx, my, x, yy + 521, rw, 32)) c.donutLiveAutoTrack = !c.donutLiveAutoTrack;
-        else if (inside(mx, my, x, yy + 560, rw, 32)) c.donutLiveShowTotal = !c.donutLiveShowTotal;
-        else if (inside(mx, my, x, yy + 599, rw, 32)) c.donutLiveShowLastPayment = !c.donutLiveShowLastPayment;
-        else if (inside(mx, my, x, yy + 638, rw, 32)) c.donutLiveShowPayer = !c.donutLiveShowPayer;
-        else if (inside(mx, my, x, yy + 677, rw, 32)) c.donutLiveShowPaymentCount = !c.donutLiveShowPaymentCount;
+        } else if (inside(mx, my, x, yy + 525, rw, 32)) c.donutLiveAutoTrack = !c.donutLiveAutoTrack;
+        else if (inside(mx, my, x, yy + 564, rw, 32)) c.donutLiveShowTotal = !c.donutLiveShowTotal;
+        else if (inside(mx, my, x, yy + 603, rw, 32)) c.donutLiveShowLastPayment = !c.donutLiveShowLastPayment;
+        else if (inside(mx, my, x, yy + 642, rw, 32)) c.donutLiveShowPayer = !c.donutLiveShowPayer;
+        else if (inside(mx, my, x, yy + 681, rw, 32)) c.donutLiveShowPaymentCount = !c.donutLiveShowPaymentCount;
         Config.save();
     }
 
