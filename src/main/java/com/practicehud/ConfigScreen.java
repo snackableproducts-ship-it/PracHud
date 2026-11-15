@@ -10,7 +10,7 @@ import net.minecraft.text.Text;
 import java.util.List;
 import java.util.Locale;
 
-/** Prestige-style module browser with selectable colour themes. */
+/** XMCore-style module browser with selectable colour themes. */
 public class ConfigScreen extends Screen {
     private static final String SETTINGS_TAB = "Settings";
     private static final String THEMES_TAB = "Themes";
@@ -31,7 +31,7 @@ public class ConfigScreen extends Screen {
     private TextFieldWidget searchField;
 
     public ConfigScreen() {
-        super(Text.literal("Practice HUD"));
+        super(Text.literal("XMCore"));
     }
 
     private int[] palette() {
@@ -231,8 +231,8 @@ public class ConfigScreen extends Screen {
         ctx.fill(left, top, left + panelW, top + panelH, p[1]);
         ctx.fill(mainX, top + 2, left + panelW - 2, top + panelH - 2, p[2]);
         ctx.fill(left + 12, top + 17, left + 19, top + 24, p[4]);
-        ctx.drawTextWithShadow(textRenderer, "Prestige Client", left + 27, top + 15, p[5]);
-        ctx.drawText(textRenderer, "PRACTICE HUD  •  CLIENT MENU", left + 15, top + 48, p[6], false);
+        ctx.drawTextWithShadow(textRenderer, "XMCore", left + 27, top + 15, p[5]);
+        ctx.drawText(textRenderer, "XMCORE  •  CLIENT MENU", left + 15, top + 48, p[6], false);
         ctx.drawText(textRenderer, "MODULES", left + 15, top + 78, p[6], false);
         ctx.drawText(textRenderer, "GENERAL", left + 15, top + panelH - 137, p[6], false);
 
