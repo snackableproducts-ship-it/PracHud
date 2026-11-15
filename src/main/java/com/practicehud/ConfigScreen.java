@@ -81,6 +81,7 @@ public class ConfigScreen extends Screen {
         addAction(x, y, w, "Crosshair size  •  " + c.crosshairSize, () -> c.crosshairSize = c.crosshairSize >= 24 ? 1 : c.crosshairSize + 1); y += 30;
         addAction(x, y, w, "Crosshair gap  •  " + c.crosshairGap, () -> c.crosshairGap = c.crosshairGap >= 12 ? 0 : c.crosshairGap + 1); y += 30;
         addAction(x, y, w, "Crosshair thickness  •  " + c.crosshairThickness, () -> c.crosshairThickness = c.crosshairThickness >= 5 ? 1 : c.crosshairThickness + 1); y += 30;
+        addAction(x, y, w, "Swing animation  •  " + c.swingSpeedTicks + " ticks", () -> c.swingSpeedTicks = c.swingSpeedTicks <= 1 ? 6 : c.swingSpeedTicks - 1); y += 30;
         addAction(x, y, w, "Dynamic crosshair  •  " + (c.crosshairDynamic ? "ON" : "OFF"), () -> c.crosshairDynamic = !c.crosshairDynamic); y += 30;
         addAction(x, y, w, "Crosshair outline  •  " + (c.crosshairOutline ? "ON" : "OFF"), () -> c.crosshairOutline = !c.crosshairOutline); y += 30;
         addAction(x, y, w, "Crosshair colour  •  cycle", () -> c.crosshairColor =
