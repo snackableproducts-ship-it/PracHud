@@ -121,7 +121,7 @@ public final class DonutSmp {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.getNetworkHandler() == null) return;
         Config c = Config.get();
-        String itemId = net.minecraft.util.Registries.ITEM.getId(stack.getItem()).getPath();
+        String itemId = net.minecraft.registry.Registries.ITEM.getId(stack.getItem()).getPath();
         c.donutAuctionItemId = itemId;
         c.donutAuctionItemName = stack.getName().getString();
         c.donutAuctionItemWorthKnown = false;
@@ -144,7 +144,7 @@ public final class DonutSmp {
             return;
         }
         c.donutAuctionItemName = stack.getName().getString();
-        c.donutAuctionItemId = net.minecraft.util.Registries.ITEM.getId(stack.getItem()).getPath();
+        c.donutAuctionItemId = net.minecraft.registry.Registries.ITEM.getId(stack.getItem()).getPath();
         c.donutAuctionActive = true;
         c.donutAuctionDurationSeconds = Math.max(5, Math.min(3600, c.donutAuctionDurationSeconds));
         c.donutAuctionEndAt = System.currentTimeMillis() + c.donutAuctionDurationSeconds * 1000L;
