@@ -20,6 +20,8 @@ public final class DonutSmp {
             "(?i)(?:balance|you have|current balance)[^0-9$]*\\$?([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)");
     private static final Pattern INCOMING = Pattern.compile(
             "(?i)([A-Za-z0-9_]{3,16})\\s+(?:paid|payed|sent|gave)\\s+(?:you\\s+)?\\$?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)");
+    private static final Pattern BID_EVENT = Pattern.compile(
+            "(?i)(?:\\[?auction\\]?\\s*)?([A-Za-z0-9_]{3,16})\\s+(?:placed\\s+)?(?:a\\s+)?bid(?:\\s+of)?\\s*[:=]?\\s*\\$?([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)");
     private static final Pattern OUTGOING = Pattern.compile(
             "(?i)you\\s+(?:paid|payed|sent|spent)\\s+[A-Za-z0-9_]{3,16}[^0-9$]*\\$?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)");
 
@@ -44,6 +46,16 @@ public final class DonutSmp {
             return;
         }
 
+        Matcher bid = BID_EVENT.matcher(line);
+        if (bid.find()) {
+            double value = amount(bid.group(2));
+            if (c.donutAuctionActive && Double.isFinite(value) && value >= c.donutMinimumBid) {
+                recordBid(c, bid.group(1), value);
+                Config.save();
+            }
+            return;
+        }
+
         Matcher incoming = INCOMING.matcher(line);
         if (incoming.find()) {
             String player = incoming.group(1);
@@ -52,19 +64,7 @@ public final class DonutSmp {
                 c.donutTotalEarned += value;
                 c.donutCurrentBalance += value;
                 c.donutPlayerEarnings.merge(player, value, Double::sum);
-                if (c.donutAuctionActive && value >= c.donutMinimumBid && value > c.donutHighestBid) {
-                    c.donutHighestBid = value;
-                    c.donutHighestBidder = player;
-                    c.donutBidCount++;
-                    if (c.donutAntiSnipe) {
-                        long remaining = c.donutAuctionEndAt - System.currentTimeMillis();
-                        if (remaining > 0 && remaining <= 10_000L) {
-                            c.donutAuctionEndAt += Math.max(0, c.donutAntiSnipeSeconds) * 1000L;
-                        }
-                    }
-                } else if (c.donutAuctionActive && value >= c.donutMinimumBid) {
-                    c.donutBidCount++;
-                }
+
                 checkGoal(c);
                 Config.save();
             }
@@ -77,6 +77,20 @@ public final class DonutSmp {
             if (Double.isFinite(value) && value > 0) {
                 c.donutCurrentBalance = Math.max(0, c.donutCurrentBalance - value);
                 Config.save();
+            }
+        }
+    }
+
+    private static void recordBid(Config c, String bidder, double value) {
+        c.donutBidCount++;
+        if (value > c.donutHighestBid) {
+            c.donutHighestBid = value;
+            c.donutHighestBidder = bidder;
+            if (c.donutAntiSnipe) {
+                long remaining = c.donutAuctionEndAt - System.currentTimeMillis();
+                if (remaining > 0 && remaining <= 10_000L) {
+                    c.donutAuctionEndAt += Math.max(0, c.donutAntiSnipeSeconds) * 1000L;
+                }
             }
         }
     }
