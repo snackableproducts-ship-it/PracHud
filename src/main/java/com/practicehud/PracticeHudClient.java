@@ -34,7 +34,7 @@ public class PracticeHudClient implements ClientModInitializer {
         String[] names = {"slot_a", "slot_b", "slot_c", "slot_d"};
         for (int i = 0; i < quickKeys.length; i++) {
             quickKeys[i] = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                    "key.practicehud." + names[i], InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, category));
+                    "key.xmcore." + names[i], InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, category));
         }
 
         // Panels, rings and readouts are drawn after the subtitle overlay.
