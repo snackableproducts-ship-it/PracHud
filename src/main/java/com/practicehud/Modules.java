@@ -15,6 +15,9 @@ import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.particle.ParticleTypes;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Direction;
@@ -36,13 +39,15 @@ public final class Modules {
     public static final String CAT_CART = "Minecart & Redstone";
     public static final String CAT_UTIL = "Utility";
     public static final String CAT_VISUAL = "Visuals";
+    public static final String CAT_AMBIENCE = "Ambience";
 
-    public static final List<String> CATEGORIES = List.of(CAT_CRYSTAL, CAT_COMBAT, CAT_MACE, CAT_CART, CAT_UTIL, CAT_VISUAL);
+    public static final List<String> CATEGORIES = List.of(CAT_CRYSTAL, CAT_COMBAT, CAT_MACE, CAT_CART, CAT_UTIL, CAT_VISUAL, CAT_AMBIENCE);
     public static final List<Module> ALL = new ArrayList<>();
 
     // Smoothed minecart velocities (blocks per tick), measured from client positions.
     private static final Map<Integer, Vec3d> LAST_CART_POS = new HashMap<>();
     private static final Map<Integer, Vec3d> CART_VEL = new HashMap<>();
+    private static final java.util.Random AMBIENCE_RANDOM = new java.util.Random();
 
     private Modules() {
     }
@@ -122,6 +127,12 @@ public final class Modules {
         add("keystrokes", "Keystrokes", CAT_VISUAL, "Shows WASD, jump, sneak and sprint key states.", Modules::keystrokesHud);
         add("held_item", "Held Item HUD", CAT_VISUAL, "Shows the held item name, count and durability.", Modules::heldItemHud);
         add("world_time", "World Time", CAT_VISUAL, "Displays the current local world time.", Modules::worldTimeHud);
+
+        // ---- Ambience ----
+        add("ambient_particles", "Ambient Particles", CAT_AMBIENCE,
+                "Adds subtle floating light particles around you. Client-side visual effect.", null);
+        add("ambient_audio", "Ambient Sounds", CAT_AMBIENCE,
+                "Occasionally plays a quiet vanilla ambient cave sound locally.", null);
     }
 
     // =====================================================================
@@ -143,6 +154,21 @@ public final class Modules {
             CART_VEL.clear();
             return;
         }
+        // Optional client-only ambience. These effects never change server world state.
+        if (enabled("ambient_particles") && mc.player.age % 4 == 0) {
+            double x = mc.player.getX() + (AMBIENCE_RANDOM.nextDouble() - 0.5) * 12.0;
+            double y = mc.player.getY() + 1.0 + AMBIENCE_RANDOM.nextDouble() * 3.0;
+            double z = mc.player.getZ() + (AMBIENCE_RANDOM.nextDouble() - 0.5) * 12.0;
+            mc.world.addParticleClient(ParticleTypes.END_ROD, false, true,
+                    x, y, z, 0.0, 0.008, 0.0);
+        }
+        if (enabled("ambient_audio") && mc.player.age % 900 == 0) {
+            float pitch = 0.88f + AMBIENCE_RANDOM.nextFloat() * 0.24f;
+            mc.world.playSound(mc.player, mc.player.getX(), mc.player.getY(), mc.player.getZ(),
+                    SoundEvents.AMBIENT_CAVE, SoundCategory.AMBIENT, 0.18f, pitch,
+                    AMBIENCE_RANDOM.nextLong());
+        }
+
         if (!enabled("cart_speed")) return;
         Map<Integer, Vec3d> now = new HashMap<>();
         for (AbstractMinecartEntity c : mc.world.getEntitiesByClass(AbstractMinecartEntity.class,
