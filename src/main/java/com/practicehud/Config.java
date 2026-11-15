@@ -29,6 +29,8 @@ public final class Config {
     public int crosshairOutlineColor = 0xFF101010;
     public boolean crosshairShowWhileAiming = true;
 
+    // Swing animation duration in ticks. Lower values make the local arm animation faster.
+    public int swingSpeedTicks = 3;
 
     // Shared HUD anchor and scale, editable in the HUD editor.
     public int hudX = 4;
@@ -59,6 +61,7 @@ public final class Config {
                 if (c != null) {
                     if (c.modules == null) c.modules = new LinkedHashMap<>();
                     if (c.quickSlots == null || c.quickSlots.length != 4) c.quickSlots = new int[]{0, 1, 2, 3};
+                    if (c.swingSpeedTicks < 1 || c.swingSpeedTicks > 10) c.swingSpeedTicks = 3;
                     c.hudScale = Math.max(0.75, Math.min(1.5, c.hudScale));
                     instance = c;
                 }
