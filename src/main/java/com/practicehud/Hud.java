@@ -27,13 +27,13 @@ public final class Hud {
 
     public static void panel(DrawContext ctx, String title, int accent, Row... rows) {
         TextRenderer tr = MinecraftClient.getInstance().textRenderer;
-        int w = Math.max(112, tr.getWidth(title) + 22);
-        int h = 23;
+        int w = Math.max(132, tr.getWidth(title) + 34);
+        int h = 32;
         for (Row r : rows) {
-            w = Math.max(w, tr.getWidth(r.text()) + 18);
-            h += r.frac() >= 0 ? 17 : 12;
+            w = Math.max(w, tr.getWidth(r.text()) + 28);
+            h += r.frac() >= 0 ? 21 : 17;
         }
-        w = Math.min(w, Math.max(112, ctx.getScaledWindowWidth() - 12));
+        w = Math.min(w, Math.max(132, ctx.getScaledWindowWidth() - 16));
 
         Config c = Config.get();
         int[] custom = c.hudPositions.get(title);
@@ -42,28 +42,31 @@ public final class Hud {
         x = Math.max(0, Math.min(ctx.getScaledWindowWidth() - w, x));
         y = Math.max(0, Math.min(ctx.getScaledWindowHeight() - h, y));
 
-        // Layered card, slim accent rail, header divider.
-        ctx.fill(x + 2, y + 2, x + w + 2, y + h + 2, 0x50000000);
-        ctx.fill(x, y, x + w, y + h, 0xE9101422);
-        ctx.fill(x, y, x + 2, y + h, accent);
-        ctx.fill(x + 8, y + 8, x + 12, y + 12, accent);
-        ctx.drawTextWithShadow(tr, title, x + 17, y + 5, WHITE);
-        ctx.fill(x + 8, y + 19, x + w - 8, y + 20, 0x553D4964);
+        // Layered shadow and glass-like dark surface.
+        ctx.fill(x + 3, y + 4, x + w + 3, y + h + 4, 0x42000000);
+        ctx.fill(x + 1, y + 1, x + w - 1, y + h - 1, 0x3010182B);
+        ctx.fill(x, y, x + w, y + h, 0xF20C111F);
+        ctx.fill(x, y + 8, x + 2, y + h - 8, accent);
+        ctx.fill(x + 10, y + 9, x + 15, y + 14, accent);
+        ctx.drawTextWithShadow(tr, title, x + 22, y + 7, WHITE);
+        ctx.fill(x + 10, y + 25, x + w - 10, y + 26, 0x66414A66);
 
-        int ry = y + 25;
-        for (Row r : rows) {
-            ctx.drawTextWithShadow(tr, r.text(), x + 9, ry, r.color());
+        int ry = y + 32;
+        for (int i = 0; i < rows.length; i++) {
+            Row r = rows[i];
+            ctx.drawTextWithShadow(tr, r.text(), x + 12, ry, r.color());
             if (r.frac() >= 0) {
-                int bw = w - 18;
-                ctx.fill(x + 9, ry + 11, x + 9 + bw, ry + 14, 0xFF30384A);
+                int bw = w - 24;
+                ctx.fill(x + 12, ry + 13, x + 12 + bw, ry + 16, 0xFF293247);
                 int fill = Math.round(bw * r.frac());
-                if (fill > 0) ctx.fill(x + 9, ry + 11, x + 9 + fill, ry + 14, r.color());
-                ry += 17;
+                if (fill > 0) ctx.fill(x + 12, ry + 13, x + 12 + fill, ry + 16, r.color());
+                ry += 21;
             } else {
-                ry += 12;
+                ry += 17;
             }
+            if (i < rows.length - 1) ctx.fill(x + 12, ry - 3, x + w - 12, ry - 2, 0x222F3A55);
         }
-        if (custom == null) cursorY += h + 5;
+        if (custom == null) cursorY += h + 8;
     }
 
     public static void centered(DrawContext ctx, String text, int cx, int y, int color) {
