@@ -238,7 +238,13 @@ public class ConfigScreen extends Screen {
         drawSection(ctx, x, yy + 2, "HUD CUSTOMISATION", "Position and colour"); yy += 43;
         drawSetting(ctx, mx, my, x, yy, rw, "Dynamic crosshair", c.crosshairDynamic ? "Enabled" : "Disabled", "Click to toggle"); yy += 39;
         drawSetting(ctx, mx, my, x, yy, rw, "Crosshair outline", c.crosshairOutline ? "Enabled" : "Disabled", "Click to toggle"); yy += 39;
-        drawSetting(ctx, mx, my, x, yy, rw, "Open HUD Studio", "Drag individual widgets", "Click to open");
+        drawSetting(ctx, mx, my, x, yy, rw, "Open HUD Studio", "Drag individual widgets", "Click to open"); yy += 39;
+        drawSection(ctx, x, yy + 2, "DONUTSMP LIVE TRACKER", "Automatic tracking and HUD display"); yy += 43;
+        drawSetting(ctx, mx, my, x, yy, rw, "Auto track payments", c.donutLiveAutoTrack ? "Enabled" : "Disabled", "Click to toggle"); yy += 39;
+        drawSetting(ctx, mx, my, x, yy, rw, "Show total earned", c.donutLiveShowTotal ? "Shown" : "Hidden", "Click to toggle"); yy += 39;
+        drawSetting(ctx, mx, my, x, yy, rw, "Show last payment", c.donutLiveShowLastPayment ? "Shown" : "Hidden", "Click to toggle"); yy += 39;
+        drawSetting(ctx, mx, my, x, yy, rw, "Show payer name", c.donutLiveShowPayer ? "Shown" : "Hidden", "Click to toggle"); yy += 39;
+        drawSetting(ctx, mx, my, x, yy, rw, "Show payment count", c.donutLiveShowPaymentCount ? "Shown" : "Hidden", "Click to toggle");
     }
 
     private void drawSection(DrawContext ctx, int x, int y, String title, String sub) {
@@ -360,7 +366,11 @@ public class ConfigScreen extends Screen {
         else if (inside(mx, my, x, yy + 404, rw, 32)) c.crosshairOutline = !c.crosshairOutline;
         else if (inside(mx, my, x, yy + 443, rw, 32) && client != null) {
             Config.save(); client.setScreen(new HudEditorScreen()); return;
-        }
+        } else if (inside(mx, my, x, yy + 521, rw, 32)) c.donutLiveAutoTrack = !c.donutLiveAutoTrack;
+        else if (inside(mx, my, x, yy + 560, rw, 32)) c.donutLiveShowTotal = !c.donutLiveShowTotal;
+        else if (inside(mx, my, x, yy + 599, rw, 32)) c.donutLiveShowLastPayment = !c.donutLiveShowLastPayment;
+        else if (inside(mx, my, x, yy + 638, rw, 32)) c.donutLiveShowPayer = !c.donutLiveShowPayer;
+        else if (inside(mx, my, x, yy + 677, rw, 32)) c.donutLiveShowPaymentCount = !c.donutLiveShowPaymentCount;
         Config.save();
     }
 
@@ -414,7 +424,7 @@ public class ConfigScreen extends Screen {
             scroll = Math.max(0, Math.min(max, scroll + (verticalAmount < 0 ? 1 : -1)));
             return true;
         }
-        int maxContent = currentTab.equals(SETTINGS) ? 170 : currentTab.equals(THEMES) ? 80 : 60;
+        int maxContent = currentTab.equals(SETTINGS) ? 430 : currentTab.equals(THEMES) ? 80 : 60;
         contentScroll = Math.max(0, Math.min(maxContent,
                 contentScroll + (verticalAmount < 0 ? 36 : -36)));
         return true;
