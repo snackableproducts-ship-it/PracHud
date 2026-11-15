@@ -118,7 +118,7 @@ public final class AuctionSetupScreen extends Screen {
                 : "Not checked";
         ctx.drawText(textRenderer, "Server /worth: " + worth, px, y + 125, 0xFF72E0B0, false);
         ctx.drawText(textRenderer, "This is server base worth, not market price.", px, y + 140, 0xFF8994AD, false);
-        worthField.setX(px); worthField.setY(y + 158); worthField.setWidth(170); worthField.render(ctx, mouseX, mouseY, delta);
+        worthField.setX(px); worthField.setY(y + 158); worthField.setWidth(170);
         ctx.drawText(textRenderer, "Enter worth manually (e.g. 1.5m)", px, y + 183, 0xFF8994AD, false);
 
         ctx.drawText(textRenderer, "Auction timer", px, y + 194, 0xFFB9C2D8, false);
