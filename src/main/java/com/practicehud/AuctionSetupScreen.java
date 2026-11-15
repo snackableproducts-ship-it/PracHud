@@ -6,6 +6,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
+import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.registry.Registries;
 
 import java.util.Locale;
@@ -19,6 +20,7 @@ public final class AuctionSetupScreen extends Screen {
     private int selectedSlot = -1;
     private int durationSeconds = 60;
     private double minimumBid = 0.0;
+    private TextFieldWidget worthField;
 
     public AuctionSetupScreen() {
         super(Text.literal("DonutSMP Auction Setup"));
@@ -44,6 +46,34 @@ public final class AuctionSetupScreen extends Screen {
         if (value >= 1_000_000.0) return String.format(Locale.US, "%.2fM", value / 1_000_000.0);
         if (value >= 1_000.0) return String.format(Locale.US, "%.2fK", value / 1_000.0);
         return String.format(Locale.US, "%.0f", value);
+    }
+
+    @Override
+    protected void init() {
+        Config c = Config.get();
+        worthField = new TextFieldWidget(textRenderer, left() + 235, top() + 158, 170, 22, Text.literal("Item worth"));
+        worthField.setPlaceholder(Text.literal("Enter worth, e.g. 1.5m"));
+        worthField.setText(c.donutAuctionItemWorthKnown ? Double.toString(c.donutAuctionItemWorth) : "");
+        addSelectableChild(worthField);
+    }
+
+    private static double parseWorth(String raw) {
+        String value = raw.toLowerCase(Locale.ROOT).replace(",", "").replace("$", "").trim();
+        if (value.isEmpty()) return Double.NaN;
+        double multiplier = 1.0;
+        char last = value.charAt(value.length() - 1);
+        if (Character.isLetter(last)) {
+            multiplier = switch (last) {
+                case 'k' -> 1_000.0;
+                case 'm' -> 1_000_000.0;
+                case 'b' -> 1_000_000_000.0;
+                case 't' -> 1_000_000_000_000.0;
+                default -> Double.NaN;
+            };
+            value = value.substring(0, value.length() - 1);
+        }
+        try { return Double.parseDouble(value) * multiplier; }
+        catch (NumberFormatException ignored) { return Double.NaN; }
     }
 
     @Override
@@ -88,7 +118,8 @@ public final class AuctionSetupScreen extends Screen {
                 : "Not checked";
         ctx.drawText(textRenderer, "Server /worth: " + worth, px, y + 125, 0xFF72E0B0, false);
         ctx.drawText(textRenderer, "This is server base worth, not market price.", px, y + 140, 0xFF8994AD, false);
-        button(ctx, mouseX, mouseY, px, y + 158, 170, 25, "Check item worth", !chosen.isEmpty());
+        worthField.setX(px); worthField.setY(y + 158); worthField.setWidth(170); worthField.render(ctx, mouseX, mouseY, delta);
+        ctx.drawText(textRenderer, "Enter worth manually (e.g. 1.5m)", px, y + 183, 0xFF8994AD, false);
 
         ctx.drawText(textRenderer, "Auction timer", px, y + 194, 0xFFB9C2D8, false);
         button(ctx, mouseX, mouseY, px, y + 211, 28, 22, "−", true);
