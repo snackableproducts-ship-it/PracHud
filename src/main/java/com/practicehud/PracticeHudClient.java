@@ -14,7 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class PracticeHudClient implements ClientModInitializer {
-    public static final String MOD_ID = "practicehud";
+    public static final String MOD_ID = "xmcore";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private static KeyBinding openGui;
@@ -26,7 +26,7 @@ public class PracticeHudClient implements ClientModInitializer {
 
         KeyBinding.Category category = KeyBinding.Category.create(Identifier.of(MOD_ID, "main"));
         openGui = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.practicehud.open_gui", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, category));
+                "key.xmcore.open_gui", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, category));
         String[] names = {"slot_a", "slot_b", "slot_c", "slot_d"};
         for (int i = 0; i < quickKeys.length; i++) {
             quickKeys[i] = KeyBindingHelper.registerKeyBinding(new KeyBinding(
