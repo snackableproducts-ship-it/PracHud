@@ -15,7 +15,9 @@ public final class HudEditorScreen extends Screen {
             "Performance", "Coordinates", "Armor Status", "Potion Effects", "Keystrokes",
             "Held Item", "World Time", "Totems", "Respawn Anchor", "Movement", "Guard Timing",
             "Shield", "Cooldown", "Combat", "Critical Hit", "Mace", "Wind Burst Trainer",
-            "Vertical Speed", "Elytra", "Minecarts", "Rail Supplies", "Throw Landing"
+            "Vertical Speed", "Elytra", "Minecarts", "Rail Supplies", "Throw Landing",
+            "DonutSMP Balance", "DonutSMP Earnings", "DonutSMP Top Earners",
+            "DonutSMP Auction", "DonutSMP Live Auction", "DonutSMP Stream Info"
     );
     private static int selectedIndex = 0;
     private boolean dragging;
