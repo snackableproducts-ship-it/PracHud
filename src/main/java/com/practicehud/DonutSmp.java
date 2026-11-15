@@ -52,6 +52,19 @@ public final class DonutSmp {
                 c.donutTotalEarned += value;
                 c.donutCurrentBalance += value;
                 c.donutPlayerEarnings.merge(player, value, Double::sum);
+                if (c.donutAuctionActive && value >= c.donutMinimumBid && value > c.donutHighestBid) {
+                    c.donutHighestBid = value;
+                    c.donutHighestBidder = player;
+                    c.donutBidCount++;
+                    if (c.donutAntiSnipe) {
+                        long remaining = c.donutAuctionEndAt - System.currentTimeMillis();
+                        if (remaining > 0 && remaining <= 10_000L) {
+                            c.donutAuctionEndAt += Math.max(0, c.donutAntiSnipeSeconds) * 1000L;
+                        }
+                    }
+                } else if (c.donutAuctionActive && value >= c.donutMinimumBid) {
+                    c.donutBidCount++;
+                }
                 checkGoal(c);
                 Config.save();
             }
@@ -66,6 +79,52 @@ public final class DonutSmp {
                 Config.save();
             }
         }
+    }
+
+    public static void toggleAuction() {
+        Config c = Config.get();
+        if (!Modules.enabled("donutsmp")) {
+            MinecraftClient.getInstance().inGameHud.getChatHud().addMessage(
+                    Text.literal("§d[XMCore] §fEnable the DonutSMP module first."));
+            return;
+        }
+        if (c.donutAuctionActive) {
+            finishAuction();
+            return;
+        }
+        c.donutAuctionActive = true;
+        c.donutAuctionDurationSeconds = Math.max(5, Math.min(3600, c.donutAuctionDurationSeconds));
+        c.donutAuctionEndAt = System.currentTimeMillis() + c.donutAuctionDurationSeconds * 1000L;
+        c.donutHighestBid = 0;
+        c.donutHighestBidder = "";
+        c.donutBidCount = 0;
+        Config.save();
+        notifyLocal("§d[XMCore] §fDonutSMP auction started.");
+    }
+
+    private static void finishAuction() {
+        Config c = Config.get();
+        if (!c.donutAuctionActive) return;
+        c.donutAuctionActive = false;
+        Config.save();
+        if (c.donutHighestBidder.isBlank()) {
+            notifyLocal("§d[XMCore] §fAuction ended with no tracked bids.");
+        } else {
+            notifyLocal("§d[XMCore] §fAuction winner: §d" + c.donutHighestBidder
+                    + " §fwith §a$" + money(c.donutHighestBid) + " §f(" + c.donutBidCount + " bids).");
+        }
+    }
+
+    public static void tick() {
+        Config c = Config.get();
+        if (c.donutAuctionActive && System.currentTimeMillis() >= c.donutAuctionEndAt) {
+            finishAuction();
+        }
+    }
+
+    private static void notifyLocal(String text) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.inGameHud != null) mc.inGameHud.getChatHud().addMessage(Text.literal(text));
     }
 
     private static void checkGoal(Config c) {
@@ -132,8 +191,17 @@ public final class DonutSmp {
             Hud.panel(ctx, "DonutSMP Earnings", Hud.GOLD, rows);
         }
 
+        if (c.donutAuctionActive) {
+            long left = Math.max(0L, c.donutAuctionEndAt - System.currentTimeMillis());
+            Hud.panel(ctx, "DonutSMP Live Auction", Hud.GOLD,
+                    Hud.Row.of(String.format("Time left: %d:%02d", left / 60_000L, (left / 1000L) % 60L), Hud.YELLOW),
+                    Hud.Row.of("Highest: " + (c.donutHighestBidder.isBlank() ? "No bids" : c.donutHighestBidder), Hud.WHITE),
+                    Hud.Row.of("Bid: $" + money(c.donutHighestBid), Hud.GREEN),
+                    Hud.Row.of("Bids: " + c.donutBidCount + "  Min: $" + money(c.donutMinimumBid), Hud.GRAY));
+        }
+
         Hud.panel(ctx, "DonutSMP Stream Info", Config.get().accentColor,
-                Hud.Row.of("Player: " + player.getGameProfile().getName(), Hud.WHITE),
+                Hud.Row.of("Player: " + player.getName().getString(), Hud.WHITE),
                 Hud.Row.of("Server: DonutSMP", Hud.GRAY),
                 Hud.Row.of("Virtual balance tracker", Hud.AQUA));
     }
