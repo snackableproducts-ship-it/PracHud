@@ -3,10 +3,11 @@
   "id": "practicehud",
   "version": "${version}",
   "name": "Practice HUD",
-  "description": "Client-side HUD and practice utilities: totem/elytra/shield widgets, mace and wind charge trainers, minecart speedometer, throw landing calculator, crosshair designer.",
+  "description": "Client-side HUD and practice utilities: totem/elytra/shield widgets, mace and wind charge trainers, minecart speedometer, throw landing calculator, crosshair designer, visual HUD widgets and customizable client UI.",
   "authors": ["You"],
   "license": "MIT",
   "environment": "client",
+  "mixins": ["practicehud.mixins.json"],
   "entrypoints": {
     "client": ["com.practicehud.PracticeHudClient"]
   },
