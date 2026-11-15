@@ -101,16 +101,17 @@ public class ConfigScreen extends Screen {
     }
 
     private void buildModuleButtons(int mainX, int top, int mainW, int panelH) {
-        int y = top + 127;
+        int y = top + 119;
         for (Module module : filteredModules()) {
-            if (y > top + panelH - 48) break;
+            if (y > top + panelH - 43) break;
             int rowY = y;
             addDrawableChild(ButtonWidget.builder(Text.literal(module.isEnabled() ? "ON" : "OFF"), btn -> {
                 module.toggle();
                 btn.setMessage(Text.literal(module.isEnabled() ? "ON" : "OFF"));
-            }).dimensions(mainX + mainW - 66, rowY + 16, 48, 24)
+                Config.save();
+            }).dimensions(mainX + mainW - 66, rowY + 8, 48, 23)
                     .tooltip(Tooltip.of(Text.literal(module.description))).build());
-            y += 61;
+            y += 45;
         }
     }
 
@@ -122,7 +123,31 @@ public class ConfigScreen extends Screen {
         addAction(x, y, rowW, "Crosshair size  •  " + c.crosshairSize, () -> c.crosshairSize = c.crosshairSize >= 24 ? 1 : c.crosshairSize + 1); y += 32;
         addAction(x, y, rowW, "Crosshair gap  •  " + c.crosshairGap, () -> c.crosshairGap = c.crosshairGap >= 12 ? 0 : c.crosshairGap + 1); y += 32;
         addAction(x, y, rowW, "Crosshair thickness  •  " + c.crosshairThickness, () -> c.crosshairThickness = c.crosshairThickness >= 5 ? 1 : c.crosshairThickness + 1); y += 32;
-        addAction(x, y, rowW, "Swing Speed  •  " + c.swingSpeedTicks + " ticks (lower = faster)", () -> c.swingSpeedTicks = c.swingSpeedTicks <= 1 ? 6 : c.swingSpeedTicks - 1); y += 32;
+        addDrawableChild(ButtonWidget.builder(Text.literal("Swing Speed  •  " + c.swingSpeedTicks + " ticks"), b -> {
+            c.swingSpeedTicks = Math.max(1, c.swingSpeedTicks - 1);
+            Config.save();
+            clearAndInit();
+        }).dimensions(x + 8, y, rowW - 112, 26).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("−"), b -> {
+            c.swingSpeedTicks = Math.max(1, c.swingSpeedTicks - 1);
+            Config.save();
+            clearAndInit();
+        }).dimensions(x + rowW - 96, y, 26, 26).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("+"), b -> {
+            c.swingSpeedTicks = Math.min(10, c.swingSpeedTicks + 1);
+            Config.save();
+            clearAndInit();
+        }).dimensions(x + rowW - 64, y, 26, 26).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Normal"), b -> setSwingPreset(6))
+                .dimensions(x + rowW - 34, y, 26, 26).tooltip(Tooltip.of(Text.literal("Vanilla speed"))).build());
+        y += 32;
+        addDrawableChild(ButtonWidget.builder(Text.literal("Slow"), b -> setSwingPreset(10))
+                .dimensions(x + 8, y, 86, 24).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Prestige"), b -> setSwingPreset(2))
+                .dimensions(x + 100, y, 86, 24).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Normal"), b -> setSwingPreset(6))
+                .dimensions(x + 192, y, 86, 24).build());
+        y += 32;
         addAction(x, y, rowW, "Dynamic crosshair  •  " + (c.crosshairDynamic ? "ON" : "OFF"), () -> c.crosshairDynamic = !c.crosshairDynamic); y += 32;
         addAction(x, y, rowW, "Crosshair outline  •  " + (c.crosshairOutline ? "ON" : "OFF"), () -> c.crosshairOutline = !c.crosshairOutline); y += 32;
         addAction(x, y, rowW, "Crosshair colour  •  cycle", () -> c.crosshairColor = c.crosshairColor == 0xFFFFFFFF ? 0xFF55D6FF : c.crosshairColor == 0xFF55D6FF ? 0xFFFFB86B : 0xFFFFFFFF); y += 32;
@@ -143,6 +168,12 @@ public class ConfigScreen extends Screen {
             }).dimensions(x + 8, y, Math.min(w - 20, 440), 34).build());
             y += 44;
         }
+    }
+
+    private void setSwingPreset(int ticks) {
+        Config.get().swingSpeedTicks = ticks;
+        Config.save();
+        clearAndInit();
     }
 
     private void addAction(int x, int y, int w, String label, Runnable action) {
@@ -184,17 +215,17 @@ public class ConfigScreen extends Screen {
             ctx.drawText(textRenderer, list.size() + " modules  •  " + enabled + " enabled", mainX + 18, top + 83, p[6], false);
             int y = top + 116;
             for (Module module : list) {
-                if (y > top + panelH - 48) break;
+                if (y > top + panelH - 40) break;
                 int right = left + panelW - 13;
-                ctx.fill(mainX + 8, y, right, y + 55, p[3]);
-                ctx.drawTextWithShadow(textRenderer, module.name, mainX + 22, y + 10, p[5]);
+                ctx.fill(mainX + 8, y, right, y + 40, p[3]);
+                ctx.drawTextWithShadow(textRenderer, module.name, mainX + 22, y + 6, p[5]);
                 String desc = module.description;
                 int max = Math.max(22, (mainW - 145) / 5);
                 if (desc.length() > max) desc = desc.substring(0, max - 3) + "...";
-                ctx.drawText(textRenderer, desc, mainX + 22, y + 29, p[6], false);
-                ctx.drawText(textRenderer, "›", right - 88, y + 19, p[6], false);
-                ctx.fill(right - 35, y + 21, right - 13, y + 34, module.isEnabled() ? p[4] : p[6]);
-                y += 61;
+                ctx.drawText(textRenderer, desc, mainX + 22, y + 22, p[6], false);
+                ctx.drawText(textRenderer, "›", right - 88, y + 13, p[6], false);
+                ctx.fill(right - 35, y + 14, right - 13, y + 27, module.isEnabled() ? p[4] : p[6]);
+                y += 45;
             }
             if (list.isEmpty()) ctx.drawText(textRenderer, "No modules found", mainX + 22, top + 135, p[6], false);
         } else if (THEMES_TAB.equals(currentTab)) {
