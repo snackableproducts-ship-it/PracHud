@@ -18,8 +18,11 @@ import java.util.regex.Pattern;
 public final class DonutSmp {
     private static final Pattern BALANCE = Pattern.compile(
             "(?i)(?:balance|you have|current balance)[^0-9$]*\\$?([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)");
-    private static final Pattern INCOMING = Pattern.compile(
-            "(?i)([A-Za-z0-9_]{3,16})\\s+(?:paid|payed|sent|gave)\\s+(?:you\\s+)?\\$?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)");
+    private static final Pattern[] INCOMING_PATTERNS = {
+            Pattern.compile("(?i)([A-Za-z0-9_]{3,16})\\s+(?:paid|payed|sent|gave)\\s+(?:you\\s+)?\\$?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)"),
+            Pattern.compile("(?i)(?:you\\s+)?received\\s+\\$?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)\\s+from\\s+([A-Za-z0-9_]{3,16})"),
+            Pattern.compile("(?i)payment\\s+received\\s+from\\s+([A-Za-z0-9_]{3,16})[^0-9$]*\\$?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)")
+    };
     private static final Pattern BID_EVENT = Pattern.compile(
             "(?i)(?:\\[?auction\\]?\\s*)?([A-Za-z0-9_]{3,16})\\s+(?:placed\\s+)?(?:a\\s+)?bid(?:\\s+of)?\\s*[:=]?\\s*\\$?([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)");
     private static final Pattern OUTGOING = Pattern.compile(
@@ -77,19 +80,25 @@ public final class DonutSmp {
             return;
         }
 
-        Matcher incoming = INCOMING.matcher(line);
-        if (incoming.find()) {
-            String player = incoming.group(1);
-            double value = amount(incoming.group(2));
-            if (Double.isFinite(value) && value > 0) {
-                c.donutTotalEarned += value;
-                c.donutCurrentBalance += value;
-                c.donutPlayerEarnings.merge(player, value, Double::sum);
-
-                checkGoal(c);
-                Config.save();
+        if (Modules.enabled("donut_earnings") && c.donutLiveAutoTrack) {
+            for (int i = 0; i < INCOMING_PATTERNS.length; i++) {
+                Matcher incoming = INCOMING_PATTERNS[i].matcher(line);
+                if (!incoming.find()) continue;
+                String player = i == 1 ? incoming.group(2) : incoming.group(1);
+                String rawAmount = i == 1 ? incoming.group(1) : incoming.group(2);
+                double value = amount(rawAmount);
+                if (Double.isFinite(value) && value > 0) {
+                    c.donutTotalEarned += value;
+                    c.donutCurrentBalance += value;
+                    c.donutLastPayment = value;
+                    c.donutLastPayer = player;
+                    c.donutPaymentCount++;
+                    c.donutPlayerEarnings.merge(player, value, Double::sum);
+                    checkGoal(c);
+                    Config.save();
+                }
+                return;
             }
-            return;
         }
 
         Matcher outgoing = OUTGOING.matcher(line);
@@ -254,10 +263,17 @@ public final class DonutSmp {
 
     public static void renderEarnings(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity player) {
         Config c = Config.get();
-        double progress = c.donutGoalAmount <= 0 ? 0 : Math.min(1.0, c.donutTotalEarned / c.donutGoalAmount);
-        Hud.panel(ctx, "DonutSMP Earnings", Hud.GREEN,
-                Hud.Row.of("Total earned: $" + money(c.donutTotalEarned), Hud.WHITE),
-                Hud.Row.bar("Goal: $" + money(c.donutGoalAmount), (float) progress, Hud.AQUA));
+        java.util.List<Hud.Row> rows = new java.util.ArrayList<>();
+        if (c.donutLiveShowTotal)
+            rows.add(Hud.Row.of("Total earned: $" + money(c.donutTotalEarned), Hud.WHITE));
+        if (c.donutLiveShowLastPayment)
+            rows.add(Hud.Row.of("Last payment: $" + money(c.donutLastPayment), Hud.GREEN));
+        if (c.donutLiveShowPayer && !c.donutLastPayer.isBlank())
+            rows.add(Hud.Row.of("From: " + c.donutLastPayer, Hud.GRAY));
+        if (c.donutLiveShowPaymentCount)
+            rows.add(Hud.Row.of("Payments: " + c.donutPaymentCount, Hud.AQUA));
+        if (rows.isEmpty()) rows.add(Hud.Row.of("Enable display fields in XMCore Settings", Hud.GRAY));
+        Hud.panel(ctx, "DonutSMP Live Tracker", Hud.GREEN, rows.toArray(new Hud.Row[0]));
     }
 
     public static void renderTopEarners(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity player) {
