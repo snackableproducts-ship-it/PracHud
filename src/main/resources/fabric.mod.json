@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "id": "practicehud",
+  "id": "xmcore",
   "version": "${version}",
-  "name": "Practice HUD",
+  "name": "XMCore",
   "description": "Client-side HUD and practice utilities with visual customization and optional first-person swing animation settings.",
-  "authors": ["You"],
+  "authors": ["MalekXMine"],
   "license": "MIT",
   "environment": "client",
   "entrypoints": {
