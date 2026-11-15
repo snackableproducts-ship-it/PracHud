@@ -294,12 +294,11 @@ public final class Modules {
 
     private static void sessionStats(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
         int seconds = Math.max(0, p.age / 20);
-        double distance = p.getPos().distanceTo(p.prevX == 0 && p.prevY == 0 && p.prevZ == 0
-                ? p.getPos() : new Vec3d(p.prevX, p.prevY, p.prevZ));
+        double speed = Math.hypot(p.getVelocity().x, p.getVelocity().z) * 20.0;
         Hud.panel(ctx, "Session Stats", Hud.AQUA,
                 Row.of("Time: " + Hud.time(seconds), Hud.WHITE),
                 Row.of("FPS: " + mc.getCurrentFps(), Hud.GREEN),
-                Row.of(String.format("Movement/tick: %.2f", distance), Hud.GRAY));
+                Row.of(String.format("Speed: %.2f blocks/s", speed), Hud.GRAY));
     }
 
     private static void coordinatesHud(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
