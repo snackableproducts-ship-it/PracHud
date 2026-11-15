@@ -82,6 +82,11 @@ public class ConfigScreen extends Screen {
         addAction(x, y, w, "Crosshair gap  •  " + c.crosshairGap, () -> c.crosshairGap = c.crosshairGap >= 12 ? 0 : c.crosshairGap + 1); y += 30;
         addAction(x, y, w, "Crosshair thickness  •  " + c.crosshairThickness, () -> c.crosshairThickness = c.crosshairThickness >= 5 ? 1 : c.crosshairThickness + 1); y += 30;
         addAction(x, y, w, "Dynamic crosshair  •  " + (c.crosshairDynamic ? "ON" : "OFF"), () -> c.crosshairDynamic = !c.crosshairDynamic); y += 30;
+        addAction(x, y, w, "Crosshair outline  •  " + (c.crosshairOutline ? "ON" : "OFF"), () -> c.crosshairOutline = !c.crosshairOutline); y += 30;
+        addAction(x, y, w, "Crosshair colour  •  cycle", () -> c.crosshairColor =
+                c.crosshairColor == 0xFFFFFFFF ? 0xFF55D6FF : c.crosshairColor == 0xFF55D6FF ? 0xFFFFB86B : 0xFFFFFFFF); y += 30;
+        addAction(x, y, w, "Target colour  •  cycle", () -> c.crosshairTargetColor =
+                c.crosshairTargetColor == 0xFFFF3030 ? 0xFF55FF55 : c.crosshairTargetColor == 0xFF55FF55 ? 0xFFFFB86B : 0xFFFF3030); y += 30;
         addAction(x, y, w, "Swing animation speed  •  " + String.format("%.1fx", c.swingSpeed), () -> {
             c.swingSpeed = c.swingSpeed >= 5.0 ? 0.1 : Math.round((c.swingSpeed + 0.1) * 10.0) / 10.0;
         }).tooltip(Tooltip.of(Text.literal("Visual-only setting. Vanilla combat cooldown and damage are unchanged."))); y += 30;
