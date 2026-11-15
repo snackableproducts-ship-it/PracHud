@@ -7,7 +7,6 @@
   "authors": ["You"],
   "license": "MIT",
   "environment": "client",
-  "mixins": ["practicehud.mixins.json"],
   "entrypoints": {
     "client": ["com.practicehud.PracticeHudClient"]
   },
