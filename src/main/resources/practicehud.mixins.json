@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "com.practicehud.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "LivingEntitySwingMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
