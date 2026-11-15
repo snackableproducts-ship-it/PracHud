@@ -159,6 +159,14 @@ public final class Modules {
                 "Displays held spear name and durability.", Modules::heldItemHud);
 
         // ---- Visuals ----
+        add("no_fire_overlay", "No Fire Overlay", CAT_VISUAL,
+                "Hides the first-person fire overlay for a clearer, less obstructed view.", null);
+        add("no_nausea_overlay", "No Nausea Overlay", CAT_VISUAL,
+                "Hides the nausea screen distortion overlay.", null);
+        add("no_portal_overlay", "No Portal Overlay", CAT_VISUAL,
+                "Hides the purple portal screen overlay.", null);
+        add("no_vignette", "No Vignette", CAT_VISUAL,
+                "Hides the dark edge vignette around the screen.", null);
         add("swing_speed", "Swing Speed", CAT_VISUAL,
                 "Speeds up your local first-person arm swing animation. Does not change attack speed or damage.", null);
         add("fps_counter", "FPS Counter", CAT_VISUAL, "Displays current client FPS.", Modules::fpsCounter);
