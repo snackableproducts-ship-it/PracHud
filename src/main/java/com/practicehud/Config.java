@@ -26,6 +26,14 @@ public final class Config {
     public double donutGoalAmount = 1_000_000.0;
     public boolean donutGoalNotified = false;
     public Map<String, Double> donutPlayerEarnings = new LinkedHashMap<>();
+    public boolean donutLiveShowTotal = true;
+    public boolean donutLiveShowLastPayment = true;
+    public boolean donutLiveShowPayer = true;
+    public boolean donutLiveShowPaymentCount = true;
+    public boolean donutLiveAutoTrack = true;
+    public double donutLastPayment = 0.0;
+    public String donutLastPayer = "";
+    public long donutPaymentCount = 0L;
     public boolean donutAuctionActive = false;
     public long donutAuctionEndAt = 0L;
     public int donutAuctionDurationSeconds = 60;
