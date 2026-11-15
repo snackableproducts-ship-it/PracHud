@@ -56,6 +56,7 @@ public class PracticeHudClient implements ClientModInitializer {
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             Modules.tick(client);
+            DonutSmp.tick();
             while (openGui.wasPressed()) {
                 client.setScreen(new ConfigScreen());
             }
