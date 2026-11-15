@@ -60,6 +60,9 @@ public class PracticeHudClient implements ClientModInitializer {
             while (openGui.wasPressed()) {
                 client.setScreen(new ConfigScreen());
             }
+            while (donutAuctionKey.wasPressed()) {
+                DonutSmp.toggleAuction();
+            }
             if (client.player == null) return;
             for (int i = 0; i < quickKeys.length; i++) {
                 while (quickKeys[i].wasPressed()) {
