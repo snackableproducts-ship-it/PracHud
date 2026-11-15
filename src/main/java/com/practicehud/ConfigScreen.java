@@ -132,7 +132,7 @@ public class ConfigScreen extends Screen {
                 : "Manage your client modules and visual features";
         ctx.drawTextWithShadow(textRenderer, heading, sx + 28, y + 24, TEXT);
         ctx.drawText(textRenderer, subtitle, sx + 28, y + 42, MUTED, false);
-        ctx.drawText(textRenderer, "MAL EKX MINE", x + 20, y + h - 20, MUTED, false);
+        ctx.drawText(textRenderer, "MalekXMine", x + 20, y + h - 20, MUTED, false);
         ctx.drawText(textRenderer, "v1.0  •  FABRIC", sx + contentW - 112, y + 27, MUTED, false);
 
         if (isCategory()) renderModules(ctx, mouseX, mouseY, sx, y, contentW, h);
