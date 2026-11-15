@@ -35,6 +35,12 @@ public final class Config {
     public int donutBidCount = 0;
     public boolean donutAntiSnipe = true;
     public int donutAntiSnipeSeconds = 10;
+    public String donutAuctionItemName = "";
+    public String donutAuctionItemId = "";
+    public double donutAuctionItemWorth = 0.0;
+    public boolean donutAuctionItemWorthKnown = false;
+    public boolean donutWorthPending = false;
+    public long donutWorthPendingUntil = 0L;
 
     // Crosshair designer
     public int crosshairShape = 0; // 0 cross, 1 dot, 2 circle, 3 cross + dot
