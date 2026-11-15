@@ -25,6 +25,18 @@ public final class Config {
     public boolean crosshairDynamic = true;
     public int crosshairColor = 0xFFFFFFFF;
     public int crosshairTargetColor = 0xFFFF3030;
+    public boolean crosshairOutline = false;
+    public int crosshairOutlineColor = 0xFF101010;
+    public boolean crosshairShowWhileAiming = true;
+
+    // Swing animation speed is visual-only; it does not change attack cooldowns.
+    public double swingSpeed = 1.0;
+
+    // Shared HUD anchor and scale, editable in the HUD editor.
+    public int hudX = 4;
+    public int hudY = 4;
+    public double hudScale = 1.0;
+    public int accentColor = 0xFF55D6FF;
 
     // Target tracking ring
     public int ringRadius = 40;
@@ -49,6 +61,8 @@ public final class Config {
                 if (c != null) {
                     if (c.modules == null) c.modules = new LinkedHashMap<>();
                     if (c.quickSlots == null || c.quickSlots.length != 4) c.quickSlots = new int[]{0, 1, 2, 3};
+                    c.swingSpeed = Math.max(0.1, Math.min(5.0, c.swingSpeed));
+                    c.hudScale = Math.max(0.75, Math.min(1.5, c.hudScale));
                     instance = c;
                 }
             }
