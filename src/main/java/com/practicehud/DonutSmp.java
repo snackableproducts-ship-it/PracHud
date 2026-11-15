@@ -28,7 +28,7 @@ public final class DonutSmp {
     private DonutSmp() {}
 
     public static void onChat(Text message) {
-        if (!Modules.enabled("donutsmp") || message == null) return;
+        if (!(Modules.enabled("donut_balance") || Modules.enabled("donut_earnings") || Modules.enabled("donut_top_earners") || Modules.enabled("donut_goal_alert") || Modules.enabled("donut_auction")) || message == null) return;
         String line = message.getString();
         Config c = Config.get();
 
@@ -49,7 +49,7 @@ public final class DonutSmp {
         Matcher bid = BID_EVENT.matcher(line);
         if (bid.find()) {
             double value = amount(bid.group(2));
-            if (c.donutAuctionActive && Double.isFinite(value) && value >= c.donutMinimumBid) {
+            if (Modules.enabled("donut_auction") && c.donutAuctionActive && Double.isFinite(value) && value >= c.donutMinimumBid) {
                 recordBid(c, bid.group(1), value);
                 Config.save();
             }
@@ -97,7 +97,7 @@ public final class DonutSmp {
 
     public static void toggleAuction() {
         Config c = Config.get();
-        if (!Modules.enabled("donutsmp")) {
+        if (!Modules.enabled("donut_auction")) {
             MinecraftClient.getInstance().inGameHud.getChatHud().addMessage(
                     Text.literal("§d[XMCore] §fEnable the DonutSMP module first."));
             return;
@@ -180,40 +180,57 @@ public final class DonutSmp {
         return String.format(Locale.US, "%.0f", value);
     }
 
-    public static void render(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity player) {
+    public static void renderBalance(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity player) {
         Config c = Config.get();
-        double progress = c.donutGoalAmount <= 0 ? 0 : Math.min(1.0, c.donutTotalEarned / c.donutGoalAmount);
         Hud.panel(ctx, "DonutSMP Balance", Hud.AQUA,
                 Hud.Row.of("Balance: $" + money(c.donutCurrentBalance), Hud.WHITE),
-                Hud.Row.of("Starting: $" + money(c.donutStartingBalance), Hud.GRAY),
-                Hud.Row.of("Earned: $" + money(c.donutTotalEarned), Hud.GREEN),
-                Hud.Row.bar("Goal: $" + money(c.donutGoalAmount), (float) progress, Hud.AQUA));
+                Hud.Row.of("Starting: $" + money(c.donutStartingBalance), Hud.GRAY));
+    }
 
+    public static void renderEarnings(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity player) {
+        Config c = Config.get();
+        double progress = c.donutGoalAmount <= 0 ? 0 : Math.min(1.0, c.donutTotalEarned / c.donutGoalAmount);
+        Hud.panel(ctx, "DonutSMP Earnings", Hud.GREEN,
+                Hud.Row.of("Total earned: $" + money(c.donutTotalEarned), Hud.WHITE),
+                Hud.Row.bar("Goal: $" + money(c.donutGoalAmount), (float) progress, Hud.AQUA));
+    }
+
+    public static void renderTopEarners(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity player) {
+        Config c = Config.get();
         var top = c.donutPlayerEarnings.entrySet().stream()
                 .sorted(Map.Entry.<String, Double>comparingByValue(Comparator.reverseOrder()))
                 .limit(5)
                 .toList();
         if (top.isEmpty()) {
-            Hud.panel(ctx, "DonutSMP Earnings", Hud.GOLD,
+            Hud.panel(ctx, "DonutSMP Top Earners", Hud.GOLD,
                     Hud.Row.of("Waiting for payment messages", Hud.GRAY));
-        } else {
-            Hud.Row[] rows = new Hud.Row[top.size()];
-            for (int i = 0; i < top.size(); i++) {
-                Map.Entry<String, Double> entry = top.get(i);
-                rows[i] = Hud.Row.of((i + 1) + ". " + entry.getKey() + "  $" + money(entry.getValue()), Hud.WHITE);
-            }
-            Hud.panel(ctx, "DonutSMP Earnings", Hud.GOLD, rows);
+            return;
         }
-
-        if (c.donutAuctionActive) {
-            long left = Math.max(0L, c.donutAuctionEndAt - System.currentTimeMillis());
-            Hud.panel(ctx, "DonutSMP Live Auction", Hud.GOLD,
-                    Hud.Row.of(String.format("Time left: %d:%02d", left / 60_000L, (left / 1000L) % 60L), Hud.YELLOW),
-                    Hud.Row.of("Highest: " + (c.donutHighestBidder.isBlank() ? "No bids" : c.donutHighestBidder), Hud.WHITE),
-                    Hud.Row.of("Bid: $" + money(c.donutHighestBid), Hud.GREEN),
-                    Hud.Row.of("Bids: " + c.donutBidCount + "  Min: $" + money(c.donutMinimumBid), Hud.GRAY));
+        Hud.Row[] rows = new Hud.Row[top.size()];
+        for (int i = 0; i < top.size(); i++) {
+            Map.Entry<String, Double> entry = top.get(i);
+            rows[i] = Hud.Row.of((i + 1) + ". " + entry.getKey() + "  $" + money(entry.getValue()), Hud.WHITE);
         }
+        Hud.panel(ctx, "DonutSMP Top Earners", Hud.GOLD, rows);
+    }
 
+    public static void renderAuction(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity player) {
+        Config c = Config.get();
+        if (!c.donutAuctionActive) {
+            Hud.panel(ctx, "DonutSMP Auction", Hud.GOLD,
+                    Hud.Row.of("No auction is currently running", Hud.GRAY),
+                    Hud.Row.of("Use the auction hotkey to start one", Hud.WHITE));
+            return;
+        }
+        long left = Math.max(0L, c.donutAuctionEndAt - System.currentTimeMillis());
+        Hud.panel(ctx, "DonutSMP Live Auction", Hud.GOLD,
+                Hud.Row.of(String.format("Time left: %d:%02d", left / 60_000L, (left / 1000L) % 60L), Hud.YELLOW),
+                Hud.Row.of("Highest: " + (c.donutHighestBidder.isBlank() ? "No bids" : c.donutHighestBidder), Hud.WHITE),
+                Hud.Row.of("Bid: $" + money(c.donutHighestBid), Hud.GREEN),
+                Hud.Row.of("Bids: " + c.donutBidCount + "  Min: $" + money(c.donutMinimumBid), Hud.GRAY));
+    }
+
+    public static void renderStreamInfo(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity player) {
         Hud.panel(ctx, "DonutSMP Stream Info", Config.get().accentColor,
                 Hud.Row.of("Player: " + player.getName().getString(), Hud.WHITE),
                 Hud.Row.of("Server: DonutSMP", Hud.GRAY),
