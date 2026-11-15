@@ -3,6 +3,8 @@ package com.practicehud;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.input.CharInput;
+import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
@@ -33,7 +35,7 @@ public class ConfigScreen extends Screen {
     private boolean searchFocused;
 
     private static final String[] THEME_NAMES = {"Midnight", "Violet", "Ocean", "Crimson", "Light"};
-    private static final int[][] THEMES = {
+    private static final int[][] THEME_COLORS = {
             {0xF20A0D20, 0xFF101329, 0xFF0D1023, 0xFF171A31, 0xFF7965F5, 0xFFF1F1FA, 0xFF858BA8},
             {0xF20D0A1C, 0xFF17102B, 0xFF100B20, 0xFF211638, 0xFFB36BFF, 0xFFF7EEFF, 0xFFA994BE},
             {0xF2081520, 0xFF0D202B, 0xFF091923, 0xFF112B38, 0xFF39C6E8, 0xFFEAFBFF, 0xFF82AAB8},
@@ -51,7 +53,7 @@ public class ConfigScreen extends Screen {
     }
 
     private int[] palette() {
-        return THEMES[Math.max(0, Math.min(THEMES.length - 1, Config.get().themeId))];
+        return THEME_COLORS[Math.max(0, Math.min(THEME_COLORS.length - 1, Config.get().themeId))];
     }
 
     private int left() { return Math.max(12, (width - Math.min(1120, width - 24)) / 2); }
@@ -253,7 +255,7 @@ public class ConfigScreen extends Screen {
             int cx = x + col * (cw + 12), cy = yy + row * 105;
             boolean active = Config.get().themeId == i;
             boolean hover = inside(mx, my, cx, cy, cw, 88);
-            int[] t = THEMES[i];
+            int[] t = THEME_COLORS[i];
             ctx.fill(cx, cy, cx + cw, cy + 88, hover ? CARD_HOVER : CARD);
             ctx.fill(cx + 12, cy + 12, cx + cw - 12, cy + 52, t[2]);
             ctx.fill(cx + 20, cy + 20, cx + 44, cy + 44, t[4]);
@@ -371,26 +373,27 @@ public class ConfigScreen extends Screen {
     }
 
     @Override
-    public boolean charTyped(char chr, int modifiers) {
-        if (searchFocused && isCategory() && !Character.isISOControl(chr)) {
-            searchText += chr;
+    public boolean charTyped(CharInput input) {
+        int codePoint = input.codepoint();
+        if (searchFocused && isCategory() && !Character.isISOControl(codePoint)) {
+            searchText += new String(Character.toChars(codePoint));
             scroll = 0;
             return true;
         }
-        return super.charTyped(chr, modifiers);
+        return super.charTyped(input);
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    public boolean keyPressed(KeyInput input) {
         if (searchFocused && isCategory()) {
-            if (keyCode == GLFW.GLFW_KEY_BACKSPACE && !searchText.isEmpty()) {
+            if (input.key() == GLFW.GLFW_KEY_BACKSPACE && !searchText.isEmpty()) {
                 searchText = searchText.substring(0, searchText.length() - 1);
                 scroll = 0;
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE) { searchFocused = false; return true; }
+            if (input.key() == GLFW.GLFW_KEY_ESCAPE) { searchFocused = false; return true; }
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(input);
     }
 
     @Override
