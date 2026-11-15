@@ -5,7 +5,9 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "LivingEntitySwingMixin",
-    "ChatHudMixin"
+    "ChatHudMixin",
+    "InGameHudVisualsMixin",
+    "InGameOverlayVisualsMixin"
   ],
   "injectors": {
     "defaultRequire": 1
