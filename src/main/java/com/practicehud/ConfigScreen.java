@@ -89,7 +89,7 @@ public class ConfigScreen extends Screen {
                 c.crosshairTargetColor == 0xFFFF3030 ? 0xFF55FF55 : c.crosshairTargetColor == 0xFF55FF55 ? 0xFFFFB86B : 0xFFFF3030); y += 30;
         addAction(x, y, w, "Swing animation speed  •  " + String.format("%.1fx", c.swingSpeed), () -> {
             c.swingSpeed = c.swingSpeed >= 5.0 ? 0.1 : Math.round((c.swingSpeed + 0.1) * 10.0) / 10.0;
-        }).tooltip(Tooltip.of(Text.literal("Visual-only setting. Vanilla combat cooldown and damage are unchanged."))); y += 30;
+        }); y += 30;
         addAction(x, y, w, "HUD accent colour  •  cycle", () -> {
             c.accentColor = c.accentColor == 0xFF55D6FF ? 0xFFB78CFF :
                     c.accentColor == 0xFFB78CFF ? 0xFFFFB86B : 0xFF55D6FF;
