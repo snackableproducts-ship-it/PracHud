@@ -40,8 +40,9 @@ public final class Modules {
     public static final String CAT_UTIL = "Utility";
     public static final String CAT_VISUAL = "Visuals";
     public static final String CAT_AMBIENCE = "Ambience";
+    public static final String CAT_DONUT = "DonutSMP";
 
-    public static final List<String> CATEGORIES = List.of(CAT_CRYSTAL, CAT_COMBAT, CAT_MACE, CAT_CART, CAT_UTIL, CAT_VISUAL, CAT_AMBIENCE);
+    public static final List<String> CATEGORIES = List.of(CAT_CRYSTAL, CAT_COMBAT, CAT_MACE, CAT_CART, CAT_UTIL, CAT_VISUAL, CAT_DONUT, CAT_AMBIENCE);
     public static final List<Module> ALL = new ArrayList<>();
 
     // Smoothed minecart velocities (blocks per tick), measured from client positions.
@@ -133,6 +134,10 @@ public final class Modules {
         add("fps_graph", "FPS Graph", CAT_VISUAL, "Shows a rolling graph of recent client frame rates.", Modules::fpsGraph);
         add("session_stats", "Session Stats", CAT_VISUAL, "Shows session duration, movement distance and current FPS.", Modules::sessionStats);
         add("target_hud", "Target HUD", CAT_VISUAL, "Shows the name and health of the entity under your crosshair.", Modules::entityInfo);
+
+        // ---- DonutSMP ----
+        add("donutsmp", "DonutSMP", CAT_DONUT,
+                "Tracks virtual server balance, stream earnings and a goal HUD.", DonutSmp::render);
 
         // ---- Ambience ----
         add("ambient_particles", "Ambient Particles", CAT_AMBIENCE,
