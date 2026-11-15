@@ -1,5 +1,6 @@
 package com.practicehud;
 
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
@@ -37,33 +38,35 @@ public final class HudEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == 0 && mouseX >= Config.get().hudX && mouseX <= Config.get().hudX + 164
+    public boolean mouseClicked(Click click, boolean doubled) {
+        double mouseX = click.x();
+        double mouseY = click.y();
+        if (click.button() == 0 && mouseX >= Config.get().hudX && mouseX <= Config.get().hudX + 164
                 && mouseY >= Config.get().hudY && mouseY <= Config.get().hudY + 64) {
             dragging = true;
             dragOffsetX = mouseX - Config.get().hudX;
             dragOffsetY = mouseY - Config.get().hudY;
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(click, doubled);
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
-        if (dragging && button == 0) {
+    public boolean mouseDragged(Click click, double offsetX, double offsetY) {
+        if (dragging && click.button() == 0) {
             Config c = Config.get();
-            c.hudX = Math.max(0, Math.min(width - 164, (int) (mouseX - dragOffsetX)));
-            c.hudY = Math.max(0, Math.min(height - 64, (int) (mouseY - dragOffsetY)));
+            c.hudX = Math.max(0, Math.min(width - 164, (int) (click.x() - dragOffsetX)));
+            c.hudY = Math.max(0, Math.min(height - 64, (int) (click.y() - dragOffsetY)));
             Config.save();
             return true;
         }
-        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+        return super.mouseDragged(click, offsetX, offsetY);
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (button == 0) dragging = false;
-        return super.mouseReleased(mouseX, mouseY, button);
+    public boolean mouseReleased(Click click) {
+        if (click.button() == 0) dragging = false;
+        return super.mouseReleased(click);
     }
 
     @Override
