@@ -18,6 +18,15 @@ public final class Config {
 
     public Map<String, Boolean> modules = new LinkedHashMap<>();
 
+    // DonutSMP stream statistics (virtual server currency only).
+    public boolean donutBalanceCaptured = false;
+    public double donutStartingBalance = 0.0;
+    public double donutCurrentBalance = 0.0;
+    public double donutTotalEarned = 0.0;
+    public double donutGoalAmount = 1_000_000.0;
+    public boolean donutGoalNotified = false;
+    public Map<String, Double> donutPlayerEarnings = new LinkedHashMap<>();
+
     // Crosshair designer
     public int crosshairShape = 0; // 0 cross, 1 dot, 2 circle, 3 cross + dot
     public int crosshairSize = 6;
@@ -68,6 +77,7 @@ public final class Config {
                 Config c = GSON.fromJson(Files.readString(p), Config.class);
                 if (c != null) {
                     if (c.modules == null) c.modules = new LinkedHashMap<>();
+                    if (c.donutPlayerEarnings == null) c.donutPlayerEarnings = new LinkedHashMap<>();
                     if (c.hudPositions == null) c.hudPositions = new HashMap<>();
                     if (c.quickSlots == null || c.quickSlots.length != 4) c.quickSlots = new int[]{0, 1, 2, 3};
                     if (c.swingSpeedTicks < 1 || c.swingSpeedTicks > 20) c.swingSpeedTicks = 6;
