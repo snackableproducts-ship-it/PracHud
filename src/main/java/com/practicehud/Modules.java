@@ -138,8 +138,8 @@ public final class Modules {
         // ---- DonutSMP: each tool has its own toggle ----
         add("donut_balance", "Balance HUD", CAT_DONUT,
                 "Shows your tracked DonutSMP virtual balance and starting balance.", DonutSmp::renderBalance);
-        add("donut_earnings", "Earnings Tracker", CAT_DONUT,
-                "Tracks incoming virtual payments and total earnings.", DonutSmp::renderEarnings);
+        add("donut_earnings", "Live Tracker", CAT_DONUT,
+                "Automatically tracks incoming DonutSMP payments with a customizable HUD.", DonutSmp::renderEarnings);
         add("donut_top_earners", "Top Earners", CAT_DONUT,
                 "Shows the top five players by tracked virtual payments.", DonutSmp::renderTopEarners);
         add("donut_goal_alert", "Earnings Goal Alert", CAT_DONUT,
