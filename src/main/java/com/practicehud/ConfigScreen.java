@@ -58,13 +58,15 @@ public class ConfigScreen extends Screen {
         return THEME_COLORS[Math.max(0, Math.min(THEME_COLORS.length - 1, Config.get().themeId))];
     }
 
-    private int left() { return Math.max(12, (width - Math.min(1000, width - 24)) / 2); }
+    private int left() { return Math.max(12, (width - Math.min(1100, width - 24)) / 2); }
     private int top() { return Math.max(12, (height - Math.min(640, height - 24)) / 2); }
-    private int panelW() { return Math.min(1000, width - 24); }
+    private int panelW() { return Math.min(1100, width - 24); }
     private int panelH() { return Math.min(640, height - 24); }
-    private int sideW() { return 184; }
+    private int sideW() { return Math.min(190, Math.max(150, panelW() / 5)); }
     private int mainX() { return left() + sideW(); }
     private int mainW() { return panelW() - sideW(); }
+    private int workspaceW(int available) { return Math.min(760, Math.max(220, available - 56)); }
+    private int workspaceX(int sx, int available) { return sx + (available - workspaceW(available)) / 2; }
     private boolean inside(double mx, double my, int x, int y, int w, int h) {
         return mx >= x && mx <= x + w && my >= y && my <= y + h;
     }
@@ -176,7 +178,9 @@ public class ConfigScreen extends Screen {
     }
 
     private void renderModules(DrawContext ctx, int mx, int my, int sx, int y, int w, int h) {
-        int searchX = sx + w - 238;
+        int areaW = workspaceW(w);
+        int areaX = workspaceX(sx, w);
+        int searchX = areaX + areaW - 210;
         int searchY = y + 66;
         boolean searchHover = inside(mx, my, searchX, searchY, 210, 30);
         ctx.fill(searchX, searchY, searchX + 210, searchY + 30, searchFocused ? 0xFF25213B : CARD);
@@ -185,12 +189,12 @@ public class ConfigScreen extends Screen {
 
         List<Module> modules = filteredModules();
         long enabled = modules.stream().filter(Module::isEnabled).count();
-        ctx.drawText(textRenderer, modules.size() + " FEATURES", sx + 28, y + 76, MUTED, false);
-        ctx.drawText(textRenderer, enabled + " ENABLED", sx + 128, y + 76, ACCENT, false);
+        ctx.drawText(textRenderer, modules.size() + " FEATURES", areaX, y + 76, MUTED, false);
+        ctx.drawText(textRenderer, enabled + " ENABLED", areaX + 112, y + 76, ACCENT, false);
 
         int gridY = y + 116;
-        int gap = 14;
-        int cardW = (w - 56 - gap) / 2;
+        int gap = 18;
+        int cardW = (areaW - gap) / 2;
         int cardH = 84;
         int rows = Math.max(1, (h - 164) / (cardH + gap));
         int start = scroll * 2;
@@ -198,7 +202,7 @@ public class ConfigScreen extends Screen {
             Module m = modules.get(i);
             int col = (i - start) % 2;
             int row = (i - start) / 2;
-            int cx = sx + 28 + col * (cardW + gap);
+            int cx = areaX + col * (cardW + gap);
             int cy = gridY + row * (cardH + gap);
             boolean hover = inside(mx, my, cx, cy, cardW, cardH);
             boolean on = m.isEnabled();
@@ -218,18 +222,18 @@ public class ConfigScreen extends Screen {
             ctx.fill(on ? tx + 18 : tx + 2, ty + 2, on ? tx + 32 : tx + 16, ty + 16, on ? 0xFFFFFFFF : 0xFF929AAF);
             ctx.drawText(textRenderer, on ? "ON" : "OFF", cx + cardW - 48, cy + 57, on ? ACCENT : MUTED, false);
         }
-        if (modules.isEmpty()) ctx.drawText(textRenderer, "No matching modules. Try another search.", sx + 30, gridY + 18, MUTED, false);
+        if (modules.isEmpty()) ctx.drawText(textRenderer, "No matching modules. Try another search.", areaX + 2, gridY + 18, MUTED, false);
         int maxScroll = Math.max(0, (modules.size() - 1) / 2 - rows + 1);
         if (maxScroll > 0) {
             ctx.drawText(textRenderer, "SCROLL  •  " + (scroll + 1) + " / " + (maxScroll + 1),
-                    sx + w - 145, y + h - 24, MUTED, false);
+                    areaX + areaW - 145, y + h - 24, MUTED, false);
         }
     }
 
     private void renderModuleSettings(DrawContext ctx, int mx, int my, int sx, int y, int w) {
         Module module = Modules.byId(selectedModuleId);
         if (module == null || !module.category.equals(currentTab)) { selectedModuleId = null; return; }
-        int x = sx + 28, yy = y + 88 - contentScroll, rw = w - 56;
+        int rw = workspaceW(w), x = workspaceX(sx, w), yy = y + 88 - contentScroll;
         ctx.drawTextWithShadow(textRenderer, "‹  BACK TO " + currentTab.toUpperCase(Locale.ROOT), x, yy, ACCENT);
         yy += 34;
         ctx.fill(x, yy, x + rw, yy + 92, CARD);
@@ -253,7 +257,7 @@ public class ConfigScreen extends Screen {
 
     private void renderSettings(DrawContext ctx, int mx, int my, int sx, int y, int w) {
         Config c = Config.get();
-        int x = sx + 28, yy = y + 82 - contentScroll, rw = w - 56;
+        int rw = workspaceW(w), x = workspaceX(sx, w), yy = y + 82 - contentScroll;
         drawSection(ctx, x, yy, "CROSSHAIR STUDIO", "Shape, size and behaviour"); yy += 42;
         drawSetting(ctx, mx, my, x, yy, rw, "Crosshair shape", new String[]{"Cross", "Dot", "Circle", "Cross + Dot"}[Math.max(0, Math.min(3, c.crosshairShape))], "Click to change"); yy += 39;
         drawSetting(ctx, mx, my, x, yy, rw, "Crosshair size", c.crosshairSize + " px", "Click to cycle"); yy += 39;
@@ -298,7 +302,7 @@ public class ConfigScreen extends Screen {
     }
 
     private void renderThemes(DrawContext ctx, int mx, int my, int sx, int y, int w) {
-        int x = sx + 28, yy = y + 100 - contentScroll, cw = (w - 68) / 2;
+        int areaW = workspaceW(w), areaX = workspaceX(sx, w); int x = areaX, yy = y + 100 - contentScroll, cw = (areaW - 12) / 2;
         for (int i = 0; i < THEME_NAMES.length; i++) {
             int col = i % 2, row = i / 2;
             int cx = x + col * (cw + 12), cy = yy + row * 105;
@@ -319,7 +323,7 @@ public class ConfigScreen extends Screen {
     private void renderProfiles(DrawContext ctx, int mx, int my, int sx, int y, int w) {
         String[] names = {"PvP", "Clean", "Builder"};
         String[] desc = {"Combat HUD, crosshair, keystrokes and performance", "Minimal FPS, coordinates and keystrokes", "Coordinates, world time, held item and FPS"};
-        int x = sx + 28, yy = y + 104 - contentScroll, cw = w - 56;
+        int cw = workspaceW(w), x = workspaceX(sx, w), yy = y + 104 - contentScroll;
         for (int i = 0; i < names.length; i++) {
             int cy = yy + i * 94;
             boolean hover = inside(mx, my, x, cy, cw, 78);
@@ -352,7 +356,7 @@ public class ConfigScreen extends Screen {
 
         if (isCategory() && selectedModuleId != null) {
             Module module = Modules.byId(selectedModuleId);
-            int bx = sx + 28, by = y + 88 - contentScroll, rw = mainW() - 56;
+            int rw = workspaceW(mainW()), bx = workspaceX(sx, mainW()), by = y + 88 - contentScroll;
             if (module == null || !module.category.equals(currentTab) || inside(mx, my, bx, by, rw, 30)) {
                 selectedModuleId = null; contentScroll = 0; return true;
             }
@@ -367,12 +371,13 @@ public class ConfigScreen extends Screen {
             if (inside(mx, my, searchX, searchY, 210, 30)) { searchFocused = true; return true; }
             searchFocused = false;
             List<Module> modules = filteredModules();
-            int gridY = y + 116, gap = 14, cardW = (mainW() - 56 - gap) / 2, cardH = 84;
+            int areaW = workspaceW(mainW()), areaX = workspaceX(sx, mainW());
+            int gridY = y + 116, gap = 18, cardW = (areaW - gap) / 2, cardH = 84;
             int rows = Math.max(1, (h - 164) / (cardH + gap));
             int start = scroll * 2;
             for (int i = start; i < Math.min(modules.size(), start + rows * 2); i++) {
                 int col = (i - start) % 2, row = (i - start) / 2;
-                int cx = sx + 28 + col * (cardW + gap), cy = gridY + row * (cardH + gap);
+                int cx = areaX + col * (cardW + gap), cy = gridY + row * (cardH + gap);
                 if (inside(mx, my, cx, cy, cardW, cardH)) {
                     Module module = modules.get(i);
                     if (inside(mx, my, cx + cardW - 58, cy + 16, 56, 54)) {
@@ -389,7 +394,7 @@ public class ConfigScreen extends Screen {
         }
 
         if (currentTab.equals(THEMES)) {
-            int tx = sx + 28, ty = y + 100 - contentScroll, cw = (mainW() - 68) / 2;
+            int areaW = workspaceW(mainW()), tx = workspaceX(sx, mainW()), ty = y + 100 - contentScroll, cw = (areaW - 12) / 2;
             for (int i = 0; i < THEME_NAMES.length; i++) {
                 int cx = tx + (i % 2) * (cw + 12), cy = ty + (i / 2) * 105;
                 if (inside(mx, my, cx, cy, cw, 88)) {
@@ -397,7 +402,7 @@ public class ConfigScreen extends Screen {
                 }
             }
         } else if (currentTab.equals(PROFILES)) {
-            int px = sx + 28, py = y + 104 - contentScroll, cw = mainW() - 56;
+            int cw = workspaceW(mainW()), px = workspaceX(sx, mainW()), py = y + 104 - contentScroll;
             for (int i = 0; i < 3; i++) if (inside(mx, my, px, py + i * 94, cw, 78)) {
                 applyProfile(i == 0 ? "pvp" : i == 1 ? "clean" : "builder"); return true;
             }
