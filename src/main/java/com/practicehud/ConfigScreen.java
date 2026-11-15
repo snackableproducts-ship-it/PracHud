@@ -356,7 +356,7 @@ public class ConfigScreen extends Screen {
             if (module == null || !module.category.equals(currentTab) || inside(mx, my, bx, by, rw, 30)) {
                 selectedModuleId = null; contentScroll = 0; return true;
             }
-            if (inside(mx, my, bx, by + 34, rw, 92) || inside(mx, my, bx, by + 146, rw, 32)) {
+            if (inside(mx, my, bx, by + 180, rw, 32)) {
                 module.toggle(); Config.save(); return true;
             }
             return true;
