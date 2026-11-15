@@ -123,7 +123,7 @@ public class ConfigScreen extends Screen {
         addAction(x, y, rowW, "Crosshair size  •  " + c.crosshairSize, () -> c.crosshairSize = c.crosshairSize >= 24 ? 1 : c.crosshairSize + 1); y += 32;
         addAction(x, y, rowW, "Crosshair gap  •  " + c.crosshairGap, () -> c.crosshairGap = c.crosshairGap >= 12 ? 0 : c.crosshairGap + 1); y += 32;
         addAction(x, y, rowW, "Crosshair thickness  •  " + c.crosshairThickness, () -> c.crosshairThickness = c.crosshairThickness >= 5 ? 1 : c.crosshairThickness + 1); y += 32;
-        addDrawableChild(ButtonWidget.builder(Text.literal("Swing Speed  •  " + c.swingSpeedTicks + " ticks"), b -> {
+        addDrawableChild(ButtonWidget.builder(Text.literal("Swing Speed  •  " + c.swingSpeedTicks + " ticks (1 fast / 20 slow)"), b -> {
             c.swingSpeedTicks = Math.max(1, c.swingSpeedTicks - 1);
             Config.save();
             clearAndInit();
@@ -134,16 +134,16 @@ public class ConfigScreen extends Screen {
             clearAndInit();
         }).dimensions(x + rowW - 96, y, 26, 26).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("+"), b -> {
-            c.swingSpeedTicks = Math.min(10, c.swingSpeedTicks + 1);
+            c.swingSpeedTicks = Math.min(20, c.swingSpeedTicks + 1);
             Config.save();
             clearAndInit();
         }).dimensions(x + rowW - 64, y, 26, 26).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Normal"), b -> setSwingPreset(6))
+        addDrawableChild(ButtonWidget.builder(Text.literal("Vanilla"), b -> setSwingPreset(6))
                 .dimensions(x + rowW - 34, y, 26, 26).tooltip(Tooltip.of(Text.literal("Vanilla speed"))).build());
         y += 32;
-        addDrawableChild(ButtonWidget.builder(Text.literal("Slow"), b -> setSwingPreset(10))
+        addDrawableChild(ButtonWidget.builder(Text.literal("Slow"), b -> setSwingPreset(20))
                 .dimensions(x + 8, y, 86, 24).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Prestige"), b -> setSwingPreset(2))
+        addDrawableChild(ButtonWidget.builder(Text.literal("Prestige"), b -> setSwingPreset(3))
                 .dimensions(x + 100, y, 86, 24).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Normal"), b -> setSwingPreset(6))
                 .dimensions(x + 192, y, 86, 24).build());
@@ -152,7 +152,7 @@ public class ConfigScreen extends Screen {
         addAction(x, y, rowW, "Crosshair outline  •  " + (c.crosshairOutline ? "ON" : "OFF"), () -> c.crosshairOutline = !c.crosshairOutline); y += 32;
         addAction(x, y, rowW, "Crosshair colour  •  cycle", () -> c.crosshairColor = c.crosshairColor == 0xFFFFFFFF ? 0xFF55D6FF : c.crosshairColor == 0xFF55D6FF ? 0xFFFFB86B : 0xFFFFFFFF); y += 32;
         addAction(x, y, rowW, "HUD accent colour  •  cycle", () -> c.accentColor = c.accentColor == 0xFF55D6FF ? 0xFFB78CFF : c.accentColor == 0xFFB78CFF ? 0xFFFFB86B : 0xFF55D6FF); y += 32;
-        addAction(x, y, rowW, "Open draggable HUD editor", () -> { Config.save(); if (client != null) client.setScreen(new HudEditorScreen()); }); y += 32;
+        addAction(x, y, rowW, "Open HUD Studio — move individual widgets", () -> { Config.save(); if (client != null) client.setScreen(new HudEditorScreen()); }); y += 32;
         addAction(x, y, rowW, "Reset HUD position", () -> { c.hudX = 4; c.hudY = 4; });
     }
 
