@@ -113,6 +113,8 @@ public final class Modules {
                 "Distance to the block or entity you are targeting.", Modules::reachReadout);
 
         // ---- Visuals ----
+        add("swing_speed", "Swing Speed", CAT_VISUAL,
+                "Speeds up your local first-person arm swing animation. Does not change attack speed or damage.", null);
         add("fps_counter", "FPS Counter", CAT_VISUAL, "Displays current client FPS.", Modules::fpsCounter);
         add("coordinates", "Coordinates HUD", CAT_VISUAL, "Displays current X, Y and Z coordinates.", Modules::coordinatesHud);
         add("armor_status", "Armor Status", CAT_VISUAL, "Displays equipped armour durability.", Modules::armorStatusHud);
@@ -120,8 +122,6 @@ public final class Modules {
         add("keystrokes", "Keystrokes", CAT_VISUAL, "Shows WASD, jump, sneak and sprint key states.", Modules::keystrokesHud);
         add("held_item", "Held Item HUD", CAT_VISUAL, "Shows the held item name, count and durability.", Modules::heldItemHud);
         add("world_time", "World Time", CAT_VISUAL, "Displays the current local world time.", Modules::worldTimeHud);
-        add("swing_speed", "Swing Speed", CAT_VISUAL,
-                "Speeds up your local first-person arm swing animation. Does not change attack speed or damage.", null);
     }
 
     // =====================================================================
