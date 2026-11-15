@@ -135,9 +135,19 @@ public final class Modules {
         add("session_stats", "Session Stats", CAT_VISUAL, "Shows session duration, movement distance and current FPS.", Modules::sessionStats);
         add("target_hud", "Target HUD", CAT_VISUAL, "Shows the name and health of the entity under your crosshair.", Modules::entityInfo);
 
-        // ---- DonutSMP ----
-        add("donutsmp", "DonutSMP", CAT_DONUT,
-                "Tracks virtual server balance, stream earnings and a goal HUD.", DonutSmp::render);
+        // ---- DonutSMP: each tool has its own toggle ----
+        add("donut_balance", "Balance HUD", CAT_DONUT,
+                "Shows your tracked DonutSMP virtual balance and starting balance.", DonutSmp::renderBalance);
+        add("donut_earnings", "Earnings Tracker", CAT_DONUT,
+                "Tracks incoming virtual payments and total earnings.", DonutSmp::renderEarnings);
+        add("donut_top_earners", "Top Earners", CAT_DONUT,
+                "Shows the top five players by tracked virtual payments.", DonutSmp::renderTopEarners);
+        add("donut_goal_alert", "Earnings Goal Alert", CAT_DONUT,
+                "Notifies you when your tracked virtual earnings reach your goal.", null);
+        add("donut_auction", "Auction Tracker", CAT_DONUT,
+                "Tracks auction countdowns, bid announcements and highest bids.", DonutSmp::renderAuction);
+        add("donut_stream_info", "Stream Info HUD", CAT_DONUT,
+                "Shows your player name and DonutSMP stream status.", DonutSmp::renderStreamInfo);
 
         // ---- Ambience ----
         add("ambient_particles", "Ambient Particles", CAT_AMBIENCE,
