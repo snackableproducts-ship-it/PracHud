@@ -111,6 +111,12 @@ public final class Modules {
                 "Predicts where an ender pearl, snowball, egg or splash potion will land from your aim.", Modules::throwCalc);
         add("reach", "Interaction Distance", CAT_UTIL,
                 "Distance to the block or entity you are targeting.", Modules::reachReadout);
+
+        // ---- Visuals ----
+        add("fps_counter", "FPS Counter", CAT_VISUAL, "Displays current client FPS.", Modules::fpsCounter);
+        add("coordinates", "Coordinates HUD", CAT_VISUAL, "Displays current X, Y and Z coordinates.", Modules::coordinatesHud);
+        add("armor_status", "Armor Status", CAT_VISUAL, "Displays equipped armour durability.", Modules::armorStatusHud);
+        add("potion_hud", "Potion HUD", CAT_VISUAL, "Displays active potion effects and duration.", Modules::potionStatusHud);
     }
 
     // =====================================================================
@@ -210,6 +216,44 @@ public final class Modules {
     private static String effectName(StatusEffectInstance e) {
         String n = e.getEffectType().value().getName().getString();
         return e.getAmplifier() > 0 ? n + " " + (e.getAmplifier() + 1) : n;
+    }
+
+    // =====================================================================
+    // Visuals
+    // =====================================================================
+
+    private static void fpsCounter(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        Hud.panel(ctx, "Performance", Hud.AQUA, Row.of("FPS: " + mc.getCurrentFps(), Hud.GREEN));
+    }
+
+    private static void coordinatesHud(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        Hud.panel(ctx, "Coordinates", Hud.AQUA,
+                Row.of(String.format("X: %.1f", p.getX()), Hud.WHITE),
+                Row.of(String.format("Y: %.1f", p.getY()), Hud.WHITE),
+                Row.of(String.format("Z: %.1f", p.getZ()), Hud.WHITE));
+    }
+
+    private static void armorStatusHud(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        EquipmentSlot[] slots = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
+        String[] names = {"Helmet", "Chest", "Leggings", "Boots"};
+        List<Row> rows = new ArrayList<>();
+        for (int i = 0; i < slots.length; i++) {
+            ItemStack stack = p.getEquippedStack(slots[i]);
+            if (stack.isEmpty()) rows.add(Row.of(names[i] + ": empty", Hud.GRAY));
+            else {
+                float f = durabilityFrac(stack);
+                rows.add(Row.bar(names[i] + ": " + Math.round(f * 100) + "%", f, fracColor(f)));
+            }
+        }
+        Hud.panel(ctx, "Armor Status", Hud.AQUA, rows.toArray(new Row[0]));
+    }
+
+    private static void potionStatusHud(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        List<Row> rows = new ArrayList<>();
+        for (StatusEffectInstance effect : p.getStatusEffects())
+            rows.add(Row.of(effectName(effect) + " " + Hud.time(effect.getDuration()), Hud.WHITE));
+        if (rows.isEmpty()) rows.add(Row.of("No active effects", Hud.GRAY));
+        Hud.panel(ctx, "Potion Effects", Hud.AQUA, rows.toArray(new Row[0]));
     }
 
     // =====================================================================
