@@ -32,6 +32,7 @@ public class ConfigScreen extends Screen {
     private static String currentTab = Modules.CAT_VISUAL;
     private static String searchText = "";
     private int scroll;
+    private int contentScroll;
     private boolean searchFocused;
 
     private static final String[] THEME_NAMES = {"Midnight", "Violet", "Ocean", "Crimson", "Light"};
@@ -81,6 +82,7 @@ public class ConfigScreen extends Screen {
         searchText = "";
         searchFocused = false;
         scroll = 0;
+        contentScroll = 0;
     }
 
     @Override
@@ -137,10 +139,14 @@ public class ConfigScreen extends Screen {
         ctx.drawText(textRenderer, "MalekXMine", x + 20, y + h - 20, MUTED, false);
         ctx.drawText(textRenderer, "v1.0  •  FABRIC", sx + contentW - 112, y + 27, MUTED, false);
 
+        int clipTop = y + 62;
+        int clipBottom = y + h - 12;
+        ctx.enableScissor(sx + 1, clipTop, sx + contentW - 1, clipBottom);
         if (isCategory()) renderModules(ctx, mouseX, mouseY, sx, y, contentW, h);
         else if (currentTab.equals(SETTINGS)) renderSettings(ctx, mouseX, mouseY, sx, y, contentW);
         else if (currentTab.equals(THEMES)) renderThemes(ctx, mouseX, mouseY, sx, y, contentW);
         else renderProfiles(ctx, mouseX, mouseY, sx, y, contentW);
+        ctx.disableScissor();
 
         // Close affordance.
         boolean closeHover = inside(mouseX, mouseY, x + w - 38, y + 12, 26, 24);
@@ -220,7 +226,7 @@ public class ConfigScreen extends Screen {
 
     private void renderSettings(DrawContext ctx, int mx, int my, int sx, int y, int w) {
         Config c = Config.get();
-        int x = sx + 28, yy = y + 82, rw = w - 56;
+        int x = sx + 28, yy = y + 82 - contentScroll, rw = w - 56;
         drawSection(ctx, x, yy, "CROSSHAIR STUDIO", "Shape, size and behaviour"); yy += 42;
         drawSetting(ctx, mx, my, x, yy, rw, "Crosshair shape", new String[]{"Cross", "Dot", "Circle", "Cross + Dot"}[Math.max(0, Math.min(3, c.crosshairShape))], "Click to change"); yy += 39;
         drawSetting(ctx, mx, my, x, yy, rw, "Crosshair size", c.crosshairSize + " px", "Click to cycle"); yy += 39;
@@ -249,7 +255,7 @@ public class ConfigScreen extends Screen {
     }
 
     private void renderThemes(DrawContext ctx, int mx, int my, int sx, int y, int w) {
-        int x = sx + 28, yy = y + 100, cw = (w - 68) / 2;
+        int x = sx + 28, yy = y + 100 - contentScroll, cw = (w - 68) / 2;
         for (int i = 0; i < THEME_NAMES.length; i++) {
             int col = i % 2, row = i / 2;
             int cx = x + col * (cw + 12), cy = yy + row * 105;
@@ -270,7 +276,7 @@ public class ConfigScreen extends Screen {
     private void renderProfiles(DrawContext ctx, int mx, int my, int sx, int y, int w) {
         String[] names = {"PvP", "Clean", "Builder"};
         String[] desc = {"Combat HUD, crosshair, keystrokes and performance", "Minimal FPS, coordinates and keystrokes", "Coordinates, world time, held item and FPS"};
-        int x = sx + 28, yy = y + 104, cw = w - 56;
+        int x = sx + 28, yy = y + 104 - contentScroll, cw = w - 56;
         for (int i = 0; i < names.length; i++) {
             int cy = yy + i * 94;
             boolean hover = inside(mx, my, x, cy, cw, 78);
@@ -322,7 +328,7 @@ public class ConfigScreen extends Screen {
         }
 
         if (currentTab.equals(THEMES)) {
-            int tx = sx + 28, ty = y + 100, cw = (mainW() - 68) / 2;
+            int tx = sx + 28, ty = y + 100 - contentScroll, cw = (mainW() - 68) / 2;
             for (int i = 0; i < THEME_NAMES.length; i++) {
                 int cx = tx + (i % 2) * (cw + 12), cy = ty + (i / 2) * 105;
                 if (inside(mx, my, cx, cy, cw, 88)) {
@@ -330,7 +336,7 @@ public class ConfigScreen extends Screen {
                 }
             }
         } else if (currentTab.equals(PROFILES)) {
-            int px = sx + 28, py = y + 104, cw = mainW() - 56;
+            int px = sx + 28, py = y + 104 - contentScroll, cw = mainW() - 56;
             for (int i = 0; i < 3; i++) if (inside(mx, my, px, py + i * 94, cw, 78)) {
                 applyProfile(i == 0 ? "pvp" : i == 1 ? "clean" : "builder"); return true;
             }
@@ -343,7 +349,7 @@ public class ConfigScreen extends Screen {
 
     private void handleSettingsClick(double mx, double my, int sx, int y, int w) {
         Config c = Config.get();
-        int x = sx + 28, yy = y + 82, rw = w - 56;
+        int x = sx + 28, yy = y + 82 - contentScroll, rw = w - 56;
         if (inside(mx, my, x, yy + 42, rw, 32)) c.crosshairShape = (c.crosshairShape + 1) % 4;
         else if (inside(mx, my, x, yy + 81, rw, 32)) c.crosshairSize = c.crosshairSize >= 24 ? 1 : c.crosshairSize + 1;
         else if (inside(mx, my, x, yy + 120, rw, 32)) c.crosshairGap = c.crosshairGap >= 12 ? 0 : c.crosshairGap + 1;
@@ -398,13 +404,20 @@ public class ConfigScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        int x = left(), y = top(), sx = x + sideW();
+        if (!inside(mouseX, mouseY, sx, y + 58, mainW(), panelH() - 70)) {
+            return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        }
         if (isCategory()) {
             int rows = Math.max(1, (panelH() - 144) / 88);
             int max = Math.max(0, (filteredModules().size() - 1) / 2 - rows + 1);
             scroll = Math.max(0, Math.min(max, scroll + (verticalAmount < 0 ? 1 : -1)));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        int maxContent = currentTab.equals(SETTINGS) ? 170 : currentTab.equals(THEMES) ? 80 : 60;
+        contentScroll = Math.max(0, Math.min(maxContent,
+                contentScroll + (verticalAmount < 0 ? 36 : -36)));
+        return true;
     }
 
     @Override
