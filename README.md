@@ -1,6 +1,6 @@
-# Practice HUD (Fabric, Minecraft 1.21.11)
+# XMCore (Fabric, Minecraft 1.21.11)
 
-Client-side HUD and practice utilities. Nothing is sent to servers and nothing modifies gameplay; it only reads what your client already knows and draws it on screen. Press **Right Shift** in game to open the settings screen (rebindable under Options > Controls > Practice HUD).
+Client-side HUD and practice utilities. Nothing is sent to servers and nothing modifies gameplay; it only reads what your client already knows and draws it on screen. Press **Right Shift** in game to open the settings screen (rebindable under Options > Controls > XMCore).
 
 ## Build
 
@@ -11,7 +11,7 @@ gradle wrapper --gradle-version 9.2.1   # once, if there is no gradlew yet
 ./gradlew build                          # gradlew.bat build on Windows
 ```
 
-The jar is `build/libs/practice-hud-1.0.0.jar`. Put it in `.minecraft/mods` with Fabric Loader 0.18+ and Fabric API for 1.21.11. To test in a dev client run `./gradlew runClient`.
+The jar is `build/libs/xmcore-1.0.0.jar`. Put it in `.minecraft/mods` with Fabric Loader 0.18+ and Fabric API for 1.21.11. To test in a dev client run `./gradlew runClient`.
 
 > This project was written without access to the Fabric Maven repository, so it has **not been compiled yet**. Yarn method names shift between builds; if `./gradlew build` reports a missing symbol, it is almost always a one-word rename. Versions are pinned in `gradle.properties` (Yarn `1.21.11+build.4`, Loader `0.18.4`, Fabric API `0.141.3+1.21.11`); adjust them to the newest on https://fabricmc.net/develop if Gradle says one does not exist.
 
@@ -61,4 +61,4 @@ These need mixins or world-space rendering, which are the most version-fragile p
 
 - Distance counter and Entity Information use a line-of-sight-free ray test, so they can show mobs behind walls.
 - A module that throws an exception turns itself off and logs the error instead of crashing the game.
-- Config lives in `config/practicehud.json`.
+- Config lives in `config/xmcore.json`.
