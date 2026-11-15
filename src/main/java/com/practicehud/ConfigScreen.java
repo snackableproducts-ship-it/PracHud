@@ -220,7 +220,7 @@ public class ConfigScreen extends Screen {
         Config c = Config.get();
         int x = sx + 28, yy = y + 82, rw = w - 56;
         drawSection(ctx, x, yy, "CROSSHAIR STUDIO", "Shape, size and behaviour"); yy += 42;
-        drawSetting(ctx, mx, my, x, yy, rw, "Crosshair shape", new String[]{"Cross", "Dot", "Circle", "Cross + Dot"}[Math.max(0, Math.min(3, c.crosshairShape)]], "Click to change"); yy += 39;
+        drawSetting(ctx, mx, my, x, yy, rw, "Crosshair shape", new String[]{"Cross", "Dot", "Circle", "Cross + Dot"}[Math.max(0, Math.min(3, c.crosshairShape))], "Click to change"); yy += 39;
         drawSetting(ctx, mx, my, x, yy, rw, "Crosshair size", c.crosshairSize + " px", "Click to cycle"); yy += 39;
         drawSetting(ctx, mx, my, x, yy, rw, "Crosshair gap", c.crosshairGap + " px", "Click to cycle"); yy += 39;
         drawSetting(ctx, mx, my, x, yy, rw, "Crosshair thickness", c.crosshairThickness + " px", "Click to cycle"); yy += 39;
