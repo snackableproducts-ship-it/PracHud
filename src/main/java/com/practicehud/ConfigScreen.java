@@ -6,35 +6,31 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.input.CharInput;
 import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
- * Custom XMCore client interface. All controls are drawn by the screen rather
- * than using vanilla ButtonWidget styling.
+ * XMCore client interface.
+ *
+ * Everything is custom drawn in immediate mode: each frame the screen lays itself out,
+ * draws, and registers a list of click regions ("hits") while doing so. Clicks are then
+ * resolved against that list, so what you see is always exactly what you can click.
+ * The sidebar and the content area both scroll, so nothing can overlap at any GUI scale.
  */
 public class ConfigScreen extends Screen {
     private static final String SETTINGS = "Settings";
     private static final String THEMES = "Themes";
     private static final String PROFILES = "Profiles";
-    private static final int BG = 0xF5080912;
-    private static final int PANEL = 0xFF101321;
-    private static final int SIDEBAR = 0xFF0C0F1B;
-    private static final int CARD = 0xFF171C2D;
-    private static final int CARD_HOVER = 0xFF202740;
-    private static final int TEXT = 0xFFF1F3FC;
-    private static final int MUTED = 0xFF8992AA;
-    private static final int ACCENT = 0xFF9A7BFF;
-    private static final int ACCENT_DARK = 0xFF6049B8;
+    private static final String[] GENERAL = {SETTINGS, THEMES, PROFILES};
 
-    private static String currentTab = Modules.CAT_VISUAL;
-    private static String searchText = "";
-    private int scroll;
-    private int contentScroll;
-    private boolean searchFocused;
-    private static String selectedModuleId;
+    // Palette slots (see THEME_COLORS).
+    private static final int P_OVERLAY = 0, P_SIDEBAR = 1, P_MAIN = 2, P_CARD = 3, P_ACCENT = 4, P_TEXT = 5, P_MUTED = 6;
 
     private static final String[] THEME_NAMES = {"Midnight", "Violet", "Ocean", "Crimson", "Light"};
     private static final int[][] THEME_COLORS = {
@@ -45,8 +41,84 @@ public class ConfigScreen extends Screen {
             {0xF2D9DCE8, 0xFFE9EAF2, 0xFFF5F6FB, 0xFFFFFFFF, 0xFF6554D9, 0xFF202238, 0xFF70758D}
     };
 
+    // ---- Persistent UI state (survives reopening the screen) ----
+    private static String currentTab = Modules.CAT_VISUAL;
+    private static String searchText = "";
+    private static String selectedModuleId;
+    private static boolean gridView;
+
+    // ---- Per-instance state ----
+    private boolean searchFocused;
+    private boolean draggingScroll;
+    private final long[] profileFlash = new long[3];
+    private final Map<String, Integer> counts = new HashMap<>();
+
+    // Palette (smoothly follows the selected theme).
+    private final int[] pal = new int[7];
+    private boolean palReady;
+    private int cSide, cMain, cCard, cCardHover, cAccent, cText, cMuted, cBorder, cTrackOff;
+
+    // Animation.
+    private long lastNanos;
+    private float dt = 0.016f;
+    private float openT;
+    private float tabT = 1f;
+    private float alpha = 1f;
+    private final Map<String, Float> anims = new HashMap<>();
+    private final Map<String, String> fitCache = new HashMap<>();
+
+    // Scrolling.
+    private float navScroll, navScrollTarget, navMax;
+    private float scroll, scrollTarget, scrollMax;
+    private float pillY = -1f;
+    private float savedListScroll;
+    private int thumbH = 20;
+
+    // Layout (recomputed every frame).
+    private int px, py, pw, ph, sw;
+    private int cx, cw, cy;
+    private int vpT, vpB;
+    private int mx, my;
+    private int clipT, clipB;
+
+    private record Hit(int x, int y, int w, int h, Runnable action) {}
+    private final List<Hit> hits = new ArrayList<>();
+
+    private static final int ROW_H = 38;
+    private static final int ROW_GAP = 6;
+
+    // ---- Tiny pixel icons ('#' = filled) ----
+    private static final Map<String, String[]> ICONS = new HashMap<>();
+    private static final String[] ICON_CLOSE = {"#.....#", ".#...#.", "..#.#..", "...#...", "..#.#..", ".#...#.", "#.....#"};
+    private static final String[] ICON_CHEV_R = {"#...", ".#..", "..#.", "...#", "..#.", ".#..", "#..."};
+    private static final String[] ICON_CHEV_L = {"...#", "..#.", ".#..", "#...", ".#..", "..#.", "...#"};
+    private static final String[] ICON_SEARCH = {".###...", "#...#..", "#...#..", "#...#..", ".####..", ".....#.", "......#"};
+    private static final String[] ICON_LIST = {"#######", ".......", "#######", ".......", "#######"};
+    private static final String[] ICON_GRID = {"###.###", "###.###", ".......", "###.###", "###.###"};
+    private static final String[] ICON_CHECK = {"......#", ".....#.", "#...#..", ".#.#...", "..#...."};
+
+    static {
+        ICONS.put(Modules.CAT_CRYSTAL, new String[]{"...##...", "..####..", ".######.", "########", ".######.", "..####..", "...##..."});
+        ICONS.put(Modules.CAT_COMBAT, new String[]{"#......#", ".#....#.", "..#..#..", "...##...", "..#..#..", ".#....#.", "#......#"});
+        ICONS.put(Modules.CAT_MACE, new String[]{".#####..", ".#####..", ".#####..", "..###...", "...#....", "...#....", "...#...."});
+        ICONS.put(Modules.CAT_CART, new String[]{"........", "#......#", "########", "#......#", "#......#", "########", ".##..##."});
+        ICONS.put(Modules.CAT_UTIL, new String[]{"......##", ".....###", "....##.#", "...##...", "..##....", ".##.....", "##......"});
+        ICONS.put(Modules.CAT_UHC, new String[]{".##..##.", "########", "########", "########", ".######.", "..####..", "...##..."});
+        ICONS.put(Modules.CAT_VISUAL, new String[]{"..####..", ".#....#.", "#..##..#", "#..##..#", ".#....#.", "..####.."});
+        ICONS.put(Modules.CAT_DONUT, new String[]{"..####..", ".######.", "###..###", "###..###", ".######.", "..####.."});
+        ICONS.put(Modules.CAT_AMBIENCE, new String[]{"...#...", "...#...", "..###..", "#######", "..###..", "...#...", "...#..."});
+        ICONS.put(SETTINGS, new String[]{"#######", "..##...", "..##...", "#######", "....##.", "....##.", "#######"});
+        ICONS.put(THEMES, new String[]{"...#...", "..###..", ".#####.", "#######", "#######", ".#####.", "..###.."});
+        ICONS.put(PROFILES, new String[]{"..###..", ".#####.", "#######", ".......", "#######", ".......", "#######"});
+    }
+
     public ConfigScreen() {
         super(Text.literal("XMCore"));
+        for (String category : Modules.CATEGORIES) {
+            int n = 0;
+            for (Module m : Modules.ALL) if (m.category.equals(category)) n++;
+            counts.put(category, n);
+        }
     }
 
     @Override
@@ -54,384 +126,766 @@ public class ConfigScreen extends Screen {
         // Intentionally no vanilla widgets: the complete interface is custom drawn.
     }
 
-    private int[] palette() {
-        return THEME_COLORS[Math.max(0, Math.min(THEME_COLORS.length - 1, Config.get().themeId))];
+    // =====================================================================
+    //  Small helpers
+    // =====================================================================
+
+    private static float clamp01(float v) { return v < 0f ? 0f : Math.min(v, 1f); }
+
+    private static float easeOut(float t) {
+        float u = 1f - clamp01(t);
+        return 1f - u * u * u;
     }
 
-    private int left() { return Math.max(12, (width - Math.min(1100, width - 24)) / 2); }
-    private int top() { return Math.max(12, (height - Math.min(640, height - 24)) / 2); }
-    private int panelW() { return Math.min(1100, width - 24); }
-    private int panelH() { return Math.min(640, height - 24); }
-    private int sideW() { return Math.min(190, Math.max(150, panelW() / 5)); }
-    private int mainX() { return left() + sideW(); }
-    private int mainW() { return panelW() - sideW(); }
-    private int workspaceW(int available) { return Math.min(760, Math.max(220, available - 56)); }
-    private int workspaceX(int sx, int available) { return sx + (available - workspaceW(available)) / 2; }
-    private boolean inside(double mx, double my, int x, int y, int w, int h) {
-        return mx >= x && mx <= x + w && my >= y && my <= y + h;
+    private static int withA(int c, int a) { return (Math.max(0, Math.min(255, a)) << 24) | (c & 0xFFFFFF); }
+
+    private static int mix(int a, int b, float t) {
+        t = clamp01(t);
+        int out = 0;
+        for (int s = 0; s <= 24; s += 8) {
+            int ca = (a >>> s) & 255, cb = (b >>> s) & 255;
+            out |= (Math.round(ca + (cb - ca) * t) & 255) << s;
+        }
+        return out;
     }
 
-    private List<Module> filteredModules() {
-        String query = searchText.toLowerCase(Locale.ROOT).trim();
-        return Modules.ALL.stream()
-                .filter(m -> m.category.equals(currentTab))
-                .filter(m -> query.isEmpty() || m.name.toLowerCase(Locale.ROOT).contains(query)
-                        || m.description.toLowerCase(Locale.ROOT).contains(query))
-                .toList();
+    private static int stepColor(int cur, int tgt, float k) {
+        if (cur == tgt) return cur;
+        int out = 0;
+        boolean close = true;
+        for (int s = 0; s <= 24; s += 8) {
+            int c = (cur >>> s) & 255, t = (tgt >>> s) & 255;
+            int n = Math.round(c + (t - c) * k);
+            if (n == c && c != t) n += Integer.signum(t - c);
+            if (Math.abs(t - c) > 3) close = false;
+            out |= (n & 255) << s;
+        }
+        return close ? tgt : out;
     }
+
+    /** Multiplies a colour's alpha by the current fade. */
+    private int fade(int c) {
+        if (alpha >= 0.999f) return c;
+        return withA(c, Math.round((c >>> 24) * alpha));
+    }
+
+    /** Eases a named value toward a target (frame-rate independent). */
+    private float anim(String key, float target, float speed) {
+        float v = anims.getOrDefault(key, target);
+        v += (target - v) * (1f - (float) Math.exp(-dt * speed));
+        if (Math.abs(target - v) < 0.004f) v = target;
+        anims.put(key, v);
+        return v;
+    }
+
+    private boolean hover(int x, int y, int w, int h) {
+        return mx >= x && mx < x + w && my >= y && my < y + h && my >= clipT && my < clipB;
+    }
+
+    private static boolean inside(double x, double y, int rx, int ry, int rw, int rh) {
+        return x >= rx && x < rx + rw && y >= ry && y < ry + rh;
+    }
+
+    private void addHit(int x, int y, int w, int h, Runnable action) {
+        int y1 = Math.max(y, clipT), y2 = Math.min(y + h, clipB);
+        if (y2 <= y1 || w <= 0) return;
+        hits.add(new Hit(x, y1, w, y2 - y1, action));
+    }
+
+    private String fit(String s, int maxW) {
+        if (maxW <= 4) return "";
+        String key = maxW + "|" + s;
+        String cached = fitCache.get(key);
+        if (cached != null) return cached;
+        String out = s;
+        if (textRenderer.getWidth(s) > maxW) {
+            int dots = textRenderer.getWidth("..");
+            int end = s.length();
+            while (end > 0 && textRenderer.getWidth(s.substring(0, end)) + dots > maxW) end--;
+            out = s.substring(0, end).stripTrailing() + "..";
+        }
+        if (fitCache.size() > 600) fitCache.clear();
+        fitCache.put(key, out);
+        return out;
+    }
+
+    // ---- Drawing primitives (all respect the current fade) ----
+
+    private void fillRect(DrawContext ctx, int x, int y, int w, int h, int color) {
+        color = fade(color);
+        if ((color >>> 24) == 0 || w <= 0 || h <= 0) return;
+        ctx.fill(x, y, x + w, y + h, color);
+    }
+
+    private void rrect(DrawContext ctx, int x, int y, int w, int h, int r, int color) {
+        color = fade(color);
+        if ((color >>> 24) == 0 || w <= 0 || h <= 0) return;
+        r = Math.min(r, Math.min(w, h) / 2);
+        if (r <= 0) { ctx.fill(x, y, x + w, y + h, color); return; }
+        ctx.fill(x, y + r, x + w, y + h - r, color);
+        for (int i = 0; i < r; i++) {
+            double dy = r - i - 0.5;
+            int inset = r - (int) Math.round(Math.sqrt(r * r - dy * dy));
+            ctx.fill(x + inset, y + i, x + w - inset, y + i + 1, color);
+            ctx.fill(x + inset, y + h - 1 - i, x + w - inset, y + h - i, color);
+        }
+    }
+
+    private void rrectBorder(DrawContext ctx, int x, int y, int w, int h, int r, int fill, int border) {
+        rrect(ctx, x, y, w, h, r, border);
+        rrect(ctx, x + 1, y + 1, w - 2, h - 2, Math.max(0, r - 1), fill);
+    }
+
+    private void text(DrawContext ctx, String s, int x, int y, int color, boolean shadow) {
+        color = fade(color);
+        if ((color >>> 24) < 8 || s.isEmpty()) return;
+        ctx.drawText(textRenderer, s, x, y, color, shadow);
+    }
+
+    private void textCentered(DrawContext ctx, String s, int centerX, int y, int color, boolean shadow) {
+        text(ctx, s, centerX - textRenderer.getWidth(s) / 2, y, color, shadow);
+    }
+
+    private void icon(DrawContext ctx, String[] bmp, int x, int y, int color) {
+        if (bmp == null) return;
+        color = fade(color);
+        if ((color >>> 24) < 8) return;
+        for (int r = 0; r < bmp.length; r++) {
+            String row = bmp[r];
+            int c = 0;
+            while (c < row.length()) {
+                if (row.charAt(c) != '#') { c++; continue; }
+                int start = c;
+                while (c < row.length() && row.charAt(c) == '#') c++;
+                ctx.fill(x + start, y + r, x + c, y + r + 1, color);
+            }
+        }
+    }
+
+    private void drawSwitch(DrawContext ctx, int x, int y, int w, int h, float t) {
+        rrect(ctx, x, y, w, h, h / 2, mix(cTrackOff, cAccent, t));
+        int k = h - 4;
+        int kx = x + 2 + Math.round((w - h) * t);
+        rrect(ctx, kx, y + 2, k, k, k / 2, mix(0xFFB4BBCF, 0xFFFFFFFF, t));
+    }
+
+    // =====================================================================
+    //  State helpers
+    // =====================================================================
 
     private void selectTab(String tab) {
         currentTab = tab;
         selectedModuleId = null;
         searchText = "";
         searchFocused = false;
-        scroll = 0;
-        contentScroll = 0;
+        scroll = scrollTarget = 0f;
+        tabT = 0f;
     }
+
+    private void openModule(Module m) {
+        savedListScroll = scrollTarget;
+        currentTab = m.category;
+        selectedModuleId = m.id;
+        searchText = "";
+        searchFocused = false;
+        scroll = scrollTarget = 0f;
+        tabT = 0f;
+    }
+
+    private void closeDetail() {
+        selectedModuleId = null;
+        scroll = scrollTarget = savedListScroll;
+        tabT = 0f;
+    }
+
+    private boolean isCategory() { return Modules.CATEGORIES.contains(currentTab); }
+
+    private List<Module> filteredModules() {
+        String query = searchText.toLowerCase(Locale.ROOT).trim();
+        List<Module> out = new ArrayList<>();
+        for (Module m : Modules.ALL) {
+            if (query.isEmpty()) {
+                if (m.category.equals(currentTab)) out.add(m);
+            } else if (m.name.toLowerCase(Locale.ROOT).contains(query)
+                    || m.description.toLowerCase(Locale.ROOT).contains(query)) {
+                out.add(m);
+            }
+        }
+        return out;
+    }
+
+    private void updatePalette() {
+        int[] target = THEME_COLORS[Math.max(0, Math.min(THEME_COLORS.length - 1, Config.get().themeId))];
+        if (!palReady) { System.arraycopy(target, 0, pal, 0, 7); palReady = true; }
+        float k = 1f - (float) Math.exp(-dt * 9f);
+        for (int i = 0; i < 7; i++) pal[i] = stepColor(pal[i], target[i], k);
+        cSide = pal[P_SIDEBAR] | 0xFF000000;
+        cMain = pal[P_MAIN] | 0xFF000000;
+        cCard = pal[P_CARD] | 0xFF000000;
+        cAccent = pal[P_ACCENT] | 0xFF000000;
+        cText = pal[P_TEXT] | 0xFF000000;
+        cMuted = pal[P_MUTED] | 0xFF000000;
+        cBorder = mix(cMain, cText, 0.10f);
+        cCardHover = mix(cCard, cAccent, 0.13f);
+        cTrackOff = mix(cCard, cMuted, 0.40f);
+    }
+
+    // =====================================================================
+    //  Render
+    // =====================================================================
 
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
-        int[] p = palette();
-        int x = left(), y = top(), w = panelW(), h = panelH();
-        int sx = x + sideW(), contentW = mainW();
+        long now = System.nanoTime();
+        dt = lastNanos == 0 ? 0.016f : Math.min(0.05f, (now - lastNanos) / 1_000_000_000f);
+        lastNanos = now;
+        mx = mouseX;
+        my = mouseY;
+        openT = Math.min(1f, openT + dt / 0.24f);
+        tabT = Math.min(1f, tabT + dt / 0.22f);
+        updatePalette();
+        hits.clear();
 
-        ctx.fill(0, 0, width, height, BG);
-        // Soft backdrop accents and the main window.
-        ctx.fill(x - 5, y - 5, x + w + 5, y + h + 5, 0x28000000);
-        ctx.fill(x, y, x + w, y + h, p[2]);
-        ctx.fill(x, y, sx, y + h, SIDEBAR);
-        ctx.fill(sx, y, sx + 1, y + h, 0xFF252A3B);
+        float open = easeOut(openT);
 
-        // Brand block.
-        ctx.fill(x + 20, y + 20, x + 54, y + 54, ACCENT_DARK);
-        ctx.fill(x + 23, y + 23, x + 51, y + 51, ACCENT);
-        ctx.drawCenteredTextWithShadow(textRenderer, "X", x + 37, y + 33, 0xFFFFFFFF);
-        ctx.drawTextWithShadow(textRenderer, "XMCORE", x + 65, y + 24, TEXT);
-        ctx.drawText(textRenderer, "CLIENT FRAMEWORK", x + 65, y + 39, MUTED, false);
-        ctx.fill(x + 18, y + 70, sx - 18, y + 71, 0xFF252A3B);
+        // Vanilla blurred world backdrop, then a theme tint on top.
+        super.render(ctx, mouseX, mouseY, delta);
+        alpha = open;
+        clipT = 0;
+        clipB = height;
+        fillRect(ctx, 0, 0, width, height, withA(pal[P_OVERLAY], 0x66));
 
-        ctx.drawText(textRenderer, "WORKSPACE", x + 20, y + 86, MUTED, false);
-        int navY = y + 108;
-        for (String category : Modules.CATEGORIES) {
-            boolean active = category.equals(currentTab);
-            boolean hover = inside(mouseX, mouseY, x + 12, navY, sideW() - 24, 31);
-            drawNav(ctx, x + 12, navY, sideW() - 24, 31, category, active, hover);
-            navY += 36;
+        pw = Math.min(820, width - 24);
+        ph = Math.min(500, height - 24);
+        sw = Math.max(110, Math.min(164, pw / 4));
+        px = (width - pw) / 2;
+        py = (height - ph) / 2 + Math.round((1f - open) * 12f);
+
+        // Soft shadow + window.
+        for (int i = 4; i >= 1; i--) rrect(ctx, px - i, py - i, pw + i * 2, ph + i * 2, 8 + i, 0x16000000);
+        rrectBorder(ctx, px, py, pw, ph, 8, cMain, cBorder);
+
+        drawSidebar(ctx);
+        drawMain(ctx, open);
+
+        // Close button.
+        clipT = 0;
+        clipB = height;
+        alpha = open;
+        int bx = px + pw - 26, by = py + 10;
+        float ch = anim("close", hover(bx, by, 16, 16) ? 1f : 0f, 16f);
+        if (ch > 0.03f) rrect(ctx, bx, by, 16, 16, 4, mix(cMain, 0xFFE5484D, 0.75f * ch));
+        icon(ctx, ICON_CLOSE, bx + 4, by + 4, mix(cMuted, 0xFFFFFFFF, ch));
+        addHit(bx, by, 16, 16, this::close);
+    }
+
+    // ---------------------------------------------------------------------
+    //  Sidebar
+    // ---------------------------------------------------------------------
+
+    private void drawSidebar(DrawContext ctx) {
+        alpha = easeOut(openT);
+        rrect(ctx, px + 1, py + 1, sw - 1, ph - 2, 7, cSide);
+        fillRect(ctx, px + sw - 8, py + 1, 8, ph - 2, cSide);
+        fillRect(ctx, px + sw, py + 1, 1, ph - 2, cBorder);
+
+        // Brand.
+        rrect(ctx, px + 14, py + 12, 24, 24, 6, cAccent);
+        rrect(ctx, px + 16, py + 14, 20, 20, 5, mix(cAccent, 0xFFFFFFFF, 0.16f));
+        textCentered(ctx, "X", px + 26, py + 20, 0xFFFFFFFF, true);
+        text(ctx, "XMCore", px + 44, py + 13, cText, true);
+        text(ctx, fit("CLIENT FRAMEWORK", sw - 44 - 8), px + 44, py + 25, cMuted, false);
+        fillRect(ctx, px + 12, py + 44, sw - 24, 1, cBorder);
+
+        // Footer.
+        int footerY = py + ph - 26;
+        fillRect(ctx, px + 12, footerY, sw - 24, 1, cBorder);
+        text(ctx, "MalekXMine", px + 14, footerY + 10, cMuted, false);
+        String ver = "v1.0.0";
+        text(ctx, ver, px + sw - 12 - textRenderer.getWidth(ver), footerY + 10, mix(cMuted, cMain, 0.35f), false);
+
+        // Navigation (scrolls if the window is small).
+        int navT = py + 48, navB = footerY - 1;
+        int viewH = navB - navT;
+        int pitch = Math.max(18, Math.min(24, (viewH - 52) / 12));
+        int itemH = pitch - 2;
+
+        int yy = 6;
+        int labelModules = yy;
+        yy += 16;
+        int[] catY = new int[Modules.CATEGORIES.size()];
+        for (int i = 0; i < catY.length; i++) { catY[i] = yy; yy += pitch; }
+        yy += 8;
+        int labelGeneral = yy;
+        yy += 16;
+        int[] genY = new int[GENERAL.length];
+        for (int i = 0; i < genY.length; i++) { genY[i] = yy; yy += pitch; }
+        yy += 6;
+
+        navMax = Math.max(0, yy - viewH);
+        navScrollTarget = Math.max(0f, Math.min(navMax, navScrollTarget));
+        navScroll += (navScrollTarget - navScroll) * (1f - (float) Math.exp(-dt * 18f));
+        if (Math.abs(navScrollTarget - navScroll) < 0.2f) navScroll = navScrollTarget;
+        int scrollPx = Math.round(navScroll);
+
+        // Where is the active highlight?
+        int activeY = -1;
+        for (int i = 0; i < catY.length; i++) if (Modules.CATEGORIES.get(i).equals(currentTab)) activeY = catY[i];
+        for (int i = 0; i < genY.length; i++) if (GENERAL[i].equals(currentTab)) activeY = genY[i];
+        if (activeY >= 0) {
+            if (pillY < 0f) pillY = activeY;
+            pillY += (activeY - pillY) * (1f - (float) Math.exp(-dt * 16f));
+            if (Math.abs(activeY - pillY) < 0.3f) pillY = activeY;
         }
 
-        int generalY = y + h - 150;
-        ctx.fill(x + 18, generalY - 13, sx - 18, generalY - 12, 0xFF252A3B);
-        ctx.drawText(textRenderer, "PREFERENCES", x + 20, generalY, MUTED, false);
-        String[] general = {SETTINGS, THEMES, PROFILES};
-        for (int i = 0; i < general.length; i++) {
-            int gy = generalY + 20 + i * 34;
-            boolean active = currentTab.equals(general[i]);
-            drawNav(ctx, x + 12, gy, sideW() - 24, 29, general[i], active,
-                    inside(mouseX, mouseY, x + 12, gy, sideW() - 24, 29));
+        clipT = navT;
+        clipB = navB;
+        ctx.enableScissor(px + 1, navT, px + sw, navB);
+
+        text(ctx, "MODULES", px + 16, navT + labelModules - scrollPx, cMuted, false);
+        text(ctx, "GENERAL", px + 16, navT + labelGeneral - scrollPx, cMuted, false);
+
+        if (activeY >= 0) {
+            int pyy = navT + Math.round(pillY) - scrollPx;
+            rrect(ctx, px + 8, pyy, sw - 17, itemH, 5, mix(cSide, cAccent, 0.20f));
+            rrect(ctx, px + 8, pyy + 5, 2, itemH - 10, 1, cAccent);
         }
 
-        // Header.
-        String heading = currentTab.equals(SETTINGS) ? "Settings"
-                : currentTab.equals(THEMES) ? "Appearance"
-                : currentTab.equals(PROFILES) ? "HUD Profiles" : currentTab;
-        String subtitle = currentTab.equals(SETTINGS) ? "Fine-tune how XMCore looks and feels"
-                : currentTab.equals(THEMES) ? "Make the interface feel like yours"
-                : currentTab.equals(PROFILES) ? "Switch between ready-made setups"
-                : "Manage your client modules and visual features";
-        ctx.drawTextWithShadow(textRenderer, heading, sx + 28, y + 24, TEXT);
-        ctx.drawText(textRenderer, subtitle, sx + 28, y + 42, MUTED, false);
-        ctx.drawText(textRenderer, "MalekXMine", x + 20, y + h - 20, MUTED, false);
-        ctx.drawText(textRenderer, "v1.0  •  FABRIC", sx + contentW - 112, y + 27, MUTED, false);
-
-        int clipTop = y + 62;
-        int clipBottom = y + h - 12;
-        ctx.enableScissor(sx + 1, clipTop, sx + contentW - 1, clipBottom);
-        if (isCategory()) {
-            if (selectedModuleId != null) renderModuleSettings(ctx, mouseX, mouseY, sx, y, contentW);
-            else renderModules(ctx, mouseX, mouseY, sx, y, contentW, h);
+        for (int i = 0; i < catY.length; i++) {
+            String name = Modules.CATEGORIES.get(i);
+            navItem(ctx, name, counts.getOrDefault(name, 0), name.equals(currentTab), navT + catY[i] - scrollPx, itemH);
         }
-        else if (currentTab.equals(SETTINGS)) renderSettings(ctx, mouseX, mouseY, sx, y, contentW);
-        else if (currentTab.equals(THEMES)) renderThemes(ctx, mouseX, mouseY, sx, y, contentW);
-        else renderProfiles(ctx, mouseX, mouseY, sx, y, contentW);
+        for (int i = 0; i < genY.length; i++) {
+            navItem(ctx, GENERAL[i], 0, GENERAL[i].equals(currentTab), navT + genY[i] - scrollPx, itemH);
+        }
         ctx.disableScissor();
 
-        // Close affordance.
-        boolean closeHover = inside(mouseX, mouseY, x + w - 38, y + 12, 26, 24);
-        ctx.fill(x + w - 38, y + 12, x + w - 12, y + 36, closeHover ? 0xFF573044 : 0xFF252A3B);
-        ctx.drawCenteredTextWithShadow(textRenderer, "×", x + w - 25, y + 18, closeHover ? 0xFFFFA5B5 : TEXT);
-    }
-
-    private boolean isCategory() {
-        return Modules.CATEGORIES.contains(currentTab);
-    }
-
-    private void drawNav(DrawContext ctx, int x, int y, int w, int h, String label, boolean active, boolean hover) {
-        if (active) {
-            ctx.fill(x, y, x + w, y + h, 0xFF292342);
-            ctx.fill(x, y + 5, x + 3, y + h - 5, ACCENT);
-        } else if (hover) {
-            ctx.fill(x, y, x + w, y + h, 0xFF171D2C);
-        }
-        ctx.fill(x + 12, y + 10, x + 18, y + 16, active ? ACCENT : MUTED);
-        ctx.drawText(textRenderer, label, x + 28, y + 10, active ? TEXT : 0xFFB5BDD0, false);
-        if (active) ctx.fill(x + w - 17, y + 12, x + w - 11, y + 18, ACCENT);
-    }
-
-    private void renderModules(DrawContext ctx, int mx, int my, int sx, int y, int w, int h) {
-        int areaW = workspaceW(w);
-        int areaX = workspaceX(sx, w);
-        int searchX = areaX + areaW - 210;
-        int searchY = y + 66;
-        boolean searchHover = inside(mx, my, searchX, searchY, 210, 30);
-        ctx.fill(searchX, searchY, searchX + 210, searchY + 30, searchFocused ? 0xFF25213B : CARD);
-        ctx.drawText(textRenderer, searchText.isEmpty() ? "⌕  Search modules..." : searchText,
-                searchX + 11, searchY + 10, searchText.isEmpty() ? MUTED : TEXT, false);
-
-        List<Module> modules = filteredModules();
-        long enabled = modules.stream().filter(Module::isEnabled).count();
-        ctx.drawText(textRenderer, modules.size() + " FEATURES", areaX, y + 76, MUTED, false);
-        ctx.drawText(textRenderer, enabled + " ENABLED", areaX + 112, y + 76, ACCENT, false);
-
-        int gridY = y + 116;
-        int gap = 18;
-        int cardW = (areaW - gap) / 2;
-        int cardH = 84;
-        int rows = Math.max(1, (h - 164) / (cardH + gap));
-        int start = scroll * 2;
-        for (int i = start; i < Math.min(modules.size(), start + rows * 2); i++) {
-            Module m = modules.get(i);
-            int col = (i - start) % 2;
-            int row = (i - start) / 2;
-            int cx = areaX + col * (cardW + gap);
-            int cy = gridY + row * (cardH + gap);
-            boolean hover = inside(mx, my, cx, cy, cardW, cardH);
-            boolean on = m.isEnabled();
-            ctx.fill(cx - 1, cy - 1, cx + cardW + 1, cy + cardH + 1, hover ? 0xFF383052 : 0xFF252B3C);
-            ctx.fill(cx, cy, cx + cardW, cy + cardH, hover ? 0xFF1E2437 : CARD);
-            ctx.fill(cx, cy + 9, cx + 3, cy + cardH - 9, on ? ACCENT : 0xFF343B50);
-            ctx.fill(cx + 14, cy + 15, cx + 42, cy + 43, on ? 0xFF342A55 : 0xFF252B3B);
-            ctx.drawCenteredTextWithShadow(textRenderer, shortIcon(m.name), cx + 28, cy + 25, on ? ACCENT : MUTED);
-            ctx.drawTextWithShadow(textRenderer, m.name, cx + 52, cy + 14, TEXT);
-            String desc = m.description;
-            int max = Math.max(16, (cardW - 112) / 5);
-            if (desc.length() > max) desc = desc.substring(0, max - 2) + "..";
-            ctx.drawText(textRenderer, desc, cx + 52, cy + 33, MUTED, false);
-            int tx = cx + cardW - 52, ty = cy + 25;
-            ctx.fill(tx - 4, ty - 4, tx + 40, ty + 22, on ? 0x553F326B : 0xFF252B3B);
-            ctx.fill(tx, ty, tx + 34, ty + 18, on ? ACCENT_DARK : 0xFF343B50);
-            ctx.fill(on ? tx + 18 : tx + 2, ty + 2, on ? tx + 32 : tx + 16, ty + 16, on ? 0xFFFFFFFF : 0xFF929AAF);
-            ctx.drawText(textRenderer, on ? "ON" : "OFF", cx + cardW - 48, cy + 57, on ? ACCENT : MUTED, false);
-        }
-        if (modules.isEmpty()) ctx.drawText(textRenderer, "No matching modules. Try another search.", areaX + 2, gridY + 18, MUTED, false);
-        int maxScroll = Math.max(0, (modules.size() - 1) / 2 - rows + 1);
-        if (maxScroll > 0) {
-            ctx.drawText(textRenderer, "SCROLL  •  " + (scroll + 1) + " / " + (maxScroll + 1),
-                    areaX + areaW - 145, y + h - 24, MUTED, false);
+        // Soft scroll hints when content continues above/below.
+        if (navMax > 0) {
+            if (navScroll > 1f) fillRect(ctx, px + 1, navT, sw - 1, 6, withA(cSide, 0xB0));
+            if (navScroll < navMax - 1f) fillRect(ctx, px + 1, navB - 6, sw - 1, 6, withA(cSide, 0xB0));
         }
     }
 
-    private void renderModuleSettings(DrawContext ctx, int mx, int my, int sx, int y, int w) {
-        Module module = Modules.byId(selectedModuleId);
-        if (module == null || !module.category.equals(currentTab)) { selectedModuleId = null; return; }
-        int rw = workspaceW(w), x = workspaceX(sx, w), yy = y + 88 - contentScroll;
-        ctx.drawTextWithShadow(textRenderer, "‹  BACK TO " + currentTab.toUpperCase(Locale.ROOT), x, yy, ACCENT);
-        yy += 34;
-        ctx.fill(x, yy, x + rw, yy + 92, CARD);
-        ctx.fill(x, yy, x + 3, yy + 92, module.isEnabled() ? ACCENT : 0xFF343B50);
-        ctx.drawTextWithShadow(textRenderer, module.name, x + 16, yy + 15, TEXT);
-        ctx.drawText(textRenderer, module.description, x + 16, yy + 36, MUTED, false);
-        int tx = x + rw - 64, ty = yy + 17;
-        ctx.fill(tx, ty, tx + 48, ty + 22, module.isEnabled() ? ACCENT_DARK : 0xFF343B50);
-        ctx.drawCenteredTextWithShadow(textRenderer, module.isEnabled() ? "ON" : "OFF", tx + 24, ty + 7, TEXT);
-        yy += 112;
-        drawSection(ctx, x, yy, "MODULE SETTINGS", "Individual controls for this feature"); yy += 34;
-        drawSetting(ctx, mx, my, x, yy, rw, "Module state", module.isEnabled() ? "Enabled" : "Disabled", "Click to toggle"); yy += 42;
-        drawSetting(ctx, mx, my, x, yy, rw, "HUD position", "HUD Studio", "Move this module's widget in HUD Studio"); yy += 42;
-        ctx.drawText(textRenderer, "More module-specific options will appear here as they are added.", x + 2, yy + 8, MUTED, false);
-    }
-
-    private String shortIcon(String name) {
-        if (name.isEmpty()) return "•";
-        return name.substring(0, 1).toUpperCase(Locale.ROOT);
-    }
-
-    private void renderSettings(DrawContext ctx, int mx, int my, int sx, int y, int w) {
-        Config c = Config.get();
-        int rw = workspaceW(w), x = workspaceX(sx, w), yy = y + 82 - contentScroll;
-        drawSection(ctx, x, yy, "CROSSHAIR STUDIO", "Shape, size and behaviour"); yy += 42;
-        drawSetting(ctx, mx, my, x, yy, rw, "Crosshair shape", new String[]{"Cross", "Dot", "Circle", "Cross + Dot"}[Math.max(0, Math.min(3, c.crosshairShape))], "Click to change"); yy += 39;
-        drawSetting(ctx, mx, my, x, yy, rw, "Crosshair size", c.crosshairSize + " px", "Click to cycle"); yy += 39;
-        drawSetting(ctx, mx, my, x, yy, rw, "Crosshair gap", c.crosshairGap + " px", "Click to cycle"); yy += 39;
-        drawSetting(ctx, mx, my, x, yy, rw, "Crosshair thickness", c.crosshairThickness + " px", "Click to cycle"); yy += 39;
-        drawSection(ctx, x, yy + 2, "ANIMATION", "Local first-person swing animation"); yy += 43;
-        drawSetting(ctx, mx, my, x, yy, rw, "Swing speed", c.swingSpeedTicks + " ticks", "−   /   +"); yy += 39;
-        drawSetting(ctx, mx, my, x, yy, rw, "Swing preset", c.swingSpeedTicks == 20 ? "Slow" : c.swingSpeedTicks == 3 ? "Prestige" : c.swingSpeedTicks == 6 ? "Vanilla" : "Custom", "Click to cycle"); yy += 39;
-        drawSection(ctx, x, yy + 2, "HUD CUSTOMISATION", "Position and colour"); yy += 43;
-        drawSetting(ctx, mx, my, x, yy, rw, "Dynamic crosshair", c.crosshairDynamic ? "Enabled" : "Disabled", "Click to toggle"); yy += 39;
-        drawSetting(ctx, mx, my, x, yy, rw, "Crosshair outline", c.crosshairOutline ? "Enabled" : "Disabled", "Click to toggle"); yy += 39;
-        drawSetting(ctx, mx, my, x, yy, rw, "Open HUD Studio", "Drag individual widgets", "Click to open"); yy += 39;
-        drawSection(ctx, x, yy + 2, "DONUTSMP LIVE TRACKER", "Automatic tracking and HUD display"); yy += 43;
-        drawSetting(ctx, mx, my, x, yy, rw, "Auto track payments", c.donutLiveAutoTrack ? "Enabled" : "Disabled", "Click to toggle"); yy += 39;
-        drawSetting(ctx, mx, my, x, yy, rw, "Show total earned", c.donutLiveShowTotal ? "Shown" : "Hidden", "Click to toggle"); yy += 39;
-        drawSetting(ctx, mx, my, x, yy, rw, "Show last payment", c.donutLiveShowLastPayment ? "Shown" : "Hidden", "Click to toggle"); yy += 39;
-        drawSetting(ctx, mx, my, x, yy, rw, "Show payer name", c.donutLiveShowPayer ? "Shown" : "Hidden", "Click to toggle"); yy += 39;
-        drawSetting(ctx, mx, my, x, yy, rw, "Show payment count", c.donutLiveShowPaymentCount ? "Shown" : "Hidden", "Click to toggle");
-    }
-
-    private void drawSection(DrawContext ctx, int x, int y, String title, String sub) {
-        ctx.drawTextWithShadow(textRenderer, title, x, y, ACCENT);
-        int subX = x + textRenderer.getWidth(title) + 14;
-        int available = Math.max(0, mainW() - (subX - (left() + sideW())) - 32);
-        String fit = sub;
-        while (!fit.isEmpty() && textRenderer.getWidth(fit) > available) fit = fit.substring(0, fit.length() - 1);
-        if (!fit.equals(sub) && fit.length() > 3) fit = fit.substring(0, fit.length() - 3) + "...";
-        ctx.drawText(textRenderer, fit, subX, y, MUTED, false);
-    }
-
-    private void drawSetting(DrawContext ctx, int mx, int my, int x, int y, int w, String name, String value, String hint) {
-        boolean hover = inside(mx, my, x, y, w, 32);
-        ctx.fill(x - 1, y - 1, x + w + 1, y + 33, hover ? 0xFF383052 : 0xFF252B3C);
-        ctx.fill(x, y, x + w, y + 32, hover ? 0xFF1E2437 : CARD);
-        ctx.drawText(textRenderer, name, x + 12, y + 5, TEXT, false);
-        ctx.drawText(textRenderer, hint, x + 12, y + 19, MUTED, false);
-        int valueW = textRenderer.getWidth(value) + 18;
-        int chipW = Math.min(Math.max(48, valueW), Math.max(48, w / 3));
-        int chipX = x + w - chipW - 10;
-        ctx.fill(chipX, y + 6, chipX + chipW, y + 26, 0xFF30264D);
-        ctx.drawCenteredTextWithShadow(textRenderer, value, chipX + chipW / 2, y + 12, ACCENT);
-    }
-
-    private void renderThemes(DrawContext ctx, int mx, int my, int sx, int y, int w) {
-        int areaW = workspaceW(w), areaX = workspaceX(sx, w); int x = areaX, yy = y + 100 - contentScroll, cw = (areaW - 12) / 2;
-        for (int i = 0; i < THEME_NAMES.length; i++) {
-            int col = i % 2, row = i / 2;
-            int cx = x + col * (cw + 12), cy = yy + row * 105;
-            boolean active = Config.get().themeId == i;
-            boolean hover = inside(mx, my, cx, cy, cw, 88);
-            int[] t = THEME_COLORS[i];
-            ctx.fill(cx, cy, cx + cw, cy + 88, hover ? CARD_HOVER : CARD);
-            ctx.fill(cx + 12, cy + 12, cx + cw - 12, cy + 52, t[2]);
-            ctx.fill(cx + 20, cy + 20, cx + 44, cy + 44, t[4]);
-            ctx.fill(cx + 52, cy + 20, cx + 76, cy + 44, t[1]);
-            ctx.fill(cx + 84, cy + 20, cx + 108, cy + 44, t[3]);
-            ctx.drawTextWithShadow(textRenderer, THEME_NAMES[i], cx + 14, cy + 65, TEXT);
-            ctx.drawText(textRenderer, active ? "ACTIVE" : "SELECT", cx + cw - 62, cy + 65, active ? ACCENT : MUTED, false);
-            if (active) ctx.fill(cx, cy, cx + 3, cy + 88, ACCENT);
+    private void navItem(DrawContext ctx, String name, int count, boolean active, int y0, int itemH) {
+        int x0 = px + 8, w0 = sw - 17;
+        if (y0 + itemH < clipT || y0 > clipB) return;
+        float h = anim("nav:" + name, hover(x0, y0, w0, itemH) ? 1f : 0f, 16f);
+        if (!active && h > 0.03f) rrect(ctx, x0, y0, w0, itemH, 5, mix(cSide, cCard, 0.9f * h));
+        int ic = active ? cAccent : mix(cMuted, cText, h);
+        icon(ctx, ICONS.get(name), px + 17, y0 + (itemH - 7) / 2, ic);
+        int right = count > 0 ? 24 : 8;
+        text(ctx, fit(name, w0 - 23 - right), px + 31, y0 + (itemH - 8) / 2, active ? cText : mix(cMuted, cText, h * 0.9f), false);
+        if (count > 0) {
+            String s = Integer.toString(count);
+            text(ctx, s, x0 + w0 - 8 - textRenderer.getWidth(s), y0 + (itemH - 8) / 2, active ? mix(cMuted, cText, 0.4f) : cMuted, false);
         }
+        addHit(x0, y0, w0, itemH, () -> selectTab(name));
     }
 
-    private void renderProfiles(DrawContext ctx, int mx, int my, int sx, int y, int w) {
-        String[] names = {"PvP", "Clean", "Builder"};
-        String[] desc = {"Combat HUD, crosshair, keystrokes and performance", "Minimal FPS, coordinates and keystrokes", "Coordinates, world time, held item and FPS"};
-        int cw = workspaceW(w), x = workspaceX(sx, w), yy = y + 104 - contentScroll;
-        for (int i = 0; i < names.length; i++) {
-            int cy = yy + i * 94;
-            boolean hover = inside(mx, my, x, cy, cw, 78);
-            ctx.fill(x, cy, x + cw, cy + 78, hover ? CARD_HOVER : CARD);
-            ctx.fill(x, cy, x + 3, cy + 78, ACCENT);
-            ctx.drawTextWithShadow(textRenderer, names[i], x + 18, cy + 17, TEXT);
-            ctx.drawText(textRenderer, desc[i], x + 18, cy + 37, MUTED, false);
-            ctx.drawText(textRenderer, "APPLY  ›", x + cw - 76, cy + 29, ACCENT, false);
-        }
+    // ---------------------------------------------------------------------
+    //  Main area
+    // ---------------------------------------------------------------------
+
+    private void heading(DrawContext ctx, String italic, String rest, int x, int y, int maxW) {
+        Text t1 = Text.literal(italic).formatted(Formatting.ITALIC);
+        int w = textRenderer.getWidth(t1);
+        int col = fade(mix(cAccent, cText, 0.18f));
+        if ((col >>> 24) >= 8) ctx.drawText(textRenderer, t1, x, y, col, true);
+        if (w + textRenderer.getWidth(rest) <= maxW) text(ctx, rest, x + w, y, cText, true);
     }
 
-    @Override
-    public boolean mouseClicked(Click click, boolean doubled) {
-        double mx = click.x(), my = click.y();
-        if (click.button() != 0) return super.mouseClicked(click, doubled);
-        int x = left(), y = top(), w = panelW(), h = panelH(), sx = x + sideW();
-        if (inside(mx, my, x + w - 38, y + 12, 26, 24)) { close(); return true; }
+    private void drawMain(DrawContext ctx, float open) {
+        int mainX = px + sw + 1;
+        int mainR = px + pw - 1;
+        cx = mainX + 20;
+        cw = mainR - mainX - 20 - 18;
+        vpT = py + 62;
+        vpB = py + ph - 8;
+        boolean modulesView = isCategory() && selectedModuleId == null;
+        boolean searching = !searchText.trim().isEmpty();
 
-        int navY = y + 108;
-        for (String category : Modules.CATEGORIES) {
-            if (inside(mx, my, x + 12, navY, sideW() - 24, 31)) { selectTab(category); return true; }
-            navY += 36;
-        }
-        int generalY = y + h - 150;
-        String[] general = {SETTINGS, THEMES, PROFILES};
-        for (int i = 0; i < general.length; i++) {
-            int gy = generalY + 20 + i * 34;
-            if (inside(mx, my, x + 12, gy, sideW() - 24, 29)) { selectTab(general[i]); return true; }
-        }
-
-        if (isCategory() && selectedModuleId != null) {
-            Module module = Modules.byId(selectedModuleId);
-            int rw = workspaceW(mainW()), bx = workspaceX(sx, mainW()), by = y + 88 - contentScroll;
-            if (module == null || !module.category.equals(currentTab) || inside(mx, my, bx, by, rw, 30)) {
-                selectedModuleId = null; contentScroll = 0; return true;
-            }
-            if (inside(mx, my, bx, by + 180, rw, 32)) {
-                module.toggle(); Config.save(); return true;
-            }
-            return true;
-        }
-
-        if (isCategory()) {
-            int searchX = sx + mainW() - 238, searchY = y + 66;
-            if (inside(mx, my, searchX, searchY, 210, 30)) { searchFocused = true; return true; }
-            searchFocused = false;
-            List<Module> modules = filteredModules();
-            int areaW = workspaceW(mainW()), areaX = workspaceX(sx, mainW());
-            int gridY = y + 116, gap = 18, cardW = (areaW - gap) / 2, cardH = 84;
-            int rows = Math.max(1, (h - 164) / (cardH + gap));
-            int start = scroll * 2;
-            for (int i = start; i < Math.min(modules.size(), start + rows * 2); i++) {
-                int col = (i - start) % 2, row = (i - start) / 2;
-                int cx = areaX + col * (cardW + gap), cy = gridY + row * (cardH + gap);
-                if (inside(mx, my, cx, cy, cardW, cardH)) {
-                    Module module = modules.get(i);
-                    if (inside(mx, my, cx + cardW - 58, cy + 16, 56, 54)) {
-                        module.toggle();
-                        Config.save();
-                    } else {
-                        selectedModuleId = module.id;
-                        contentScroll = 0;
-                    }
-                    return true;
-                }
-            }
-            return true;
-        }
-
-        if (currentTab.equals(THEMES)) {
-            int areaW = workspaceW(mainW()), tx = workspaceX(sx, mainW()), ty = y + 100 - contentScroll, cw = (areaW - 12) / 2;
-            for (int i = 0; i < THEME_NAMES.length; i++) {
-                int cx = tx + (i % 2) * (cw + 12), cy = ty + (i / 2) * 105;
-                if (inside(mx, my, cx, cy, cw, 88)) {
-                    Config.get().themeId = i; Config.save(); return true;
-                }
-            }
-        } else if (currentTab.equals(PROFILES)) {
-            int cw = workspaceW(mainW()), px = workspaceX(sx, mainW()), py = y + 104 - contentScroll;
-            for (int i = 0; i < 3; i++) if (inside(mx, my, px, py + i * 94, cw, 78)) {
-                applyProfile(i == 0 ? "pvp" : i == 1 ? "clean" : "builder"); return true;
-            }
+        // ---- Header ----
+        alpha = open;
+        clipT = 0;
+        clipB = height;
+        String italic, rest, sub;
+        Module detail = selectedModuleId != null ? Modules.byId(selectedModuleId) : null;
+        if (detail != null) {
+            italic = detail.name; rest = ""; sub = detail.category;
+        } else if (isCategory()) {
+            List<Module> list = filteredModules();
+            long on = list.stream().filter(Module::isEnabled).count();
+            italic = searching ? "Search" : currentTab;
+            rest = searching ? " Results" : " Modules";
+            sub = list.size() + " modules  ·  " + on + " enabled";
         } else if (currentTab.equals(SETTINGS)) {
-            handleSettingsClick(mx, my, sx, y, mainW());
-            return true;
+            italic = "Client"; rest = " Settings"; sub = "Fine-tune how XMCore looks and feels";
+        } else if (currentTab.equals(THEMES)) {
+            italic = "Theme"; rest = " Studio"; sub = "Make the interface feel like yours";
+        } else {
+            italic = "HUD"; rest = " Profiles"; sub = "Switch between ready-made setups";
         }
-        return true;
+
+        int headRight = px + pw - 36;
+        int searchW = Math.max(110, Math.min(190, cw / 3));
+        int titleMax = modulesView ? headRight - searchW - 16 - cx : headRight - cx;
+        heading(ctx, italic, rest, cx, py + 16, titleMax);
+        text(ctx, fit(sub, titleMax), cx, py + 30, cMuted, false);
+
+        if (modulesView) {
+            drawSearchBox(ctx, headRight - searchW, py + 12, searchW, 20);
+            // View toggles.
+            int tx = headRight - 38, ty = py + 38;
+            viewToggle(ctx, "view-list", tx, ty, ICON_LIST, !gridView, () -> { gridView = false; scrollTarget = 0; });
+            viewToggle(ctx, "view-grid", tx + 20, ty, ICON_GRID, gridView, () -> { gridView = true; scrollTarget = 0; });
+        }
+        fillRect(ctx, mainX, py + 60, mainR - mainX, 1, cBorder);
+
+        // ---- Scrolling content ----
+        scrollTarget = Math.max(0f, Math.min(scrollMax, scrollTarget));
+        scroll += (scrollTarget - scroll) * (1f - (float) Math.exp(-dt * 16f));
+        if (Math.abs(scrollTarget - scroll) < 0.2f) scroll = scrollTarget;
+
+        float tabE = easeOut(tabT);
+        int slide = Math.round((1f - tabE) * 10f);
+        alpha = open * tabE;
+        clipT = vpT;
+        clipB = vpB;
+        int top0 = vpT + 8 - Math.round(scroll);
+        cy = top0 + slide;
+
+        ctx.enableScissor(mainX, vpT, mainR, vpB);
+        if (isCategory()) {
+            if (detail != null) drawDetail(ctx, detail);
+            else {
+                if (selectedModuleId != null) selectedModuleId = null;
+                drawModuleList(ctx, searching);
+            }
+        } else if (currentTab.equals(SETTINGS)) drawSettings(ctx);
+        else if (currentTab.equals(THEMES)) drawThemes(ctx);
+        else drawProfiles(ctx);
+        ctx.disableScissor();
+
+        int contentH = (cy - slide) - top0;
+        scrollMax = Math.max(0, contentH + 16 - (vpB - vpT));
+
+        // ---- Scrollbar ----
+        alpha = open;
+        if (scrollMax > 0.5f) {
+            int vpH = vpB - vpT;
+            thumbH = Math.max(22, Math.round(vpH * (vpH / (vpH + scrollMax))));
+            int ty = vpT + Math.round((vpH - thumbH) * (scroll / scrollMax));
+            boolean over = draggingScroll || inside(mx, my, px + pw - 14, vpT, 12, vpH);
+            float sh = anim("scrollbar", over ? 1f : 0f, 14f);
+            fillRect(ctx, px + pw - 10, vpT, 3, vpH, mix(cMain, cCard, 0.6f));
+            rrect(ctx, px + pw - 10, ty, 3, thumbH, 1, mix(mix(cMuted, cMain, 0.45f), cAccent, sh));
+        }
     }
 
-    private void handleSettingsClick(double mx, double my, int sx, int y, int w) {
-        Config c = Config.get();
-        int x = sx + 28, yy = y + 82 - contentScroll, rw = w - 56;
-        if (inside(mx, my, x, yy + 42, rw, 32)) c.crosshairShape = (c.crosshairShape + 1) % 4;
-        else if (inside(mx, my, x, yy + 81, rw, 32)) c.crosshairSize = c.crosshairSize >= 24 ? 1 : c.crosshairSize + 1;
-        else if (inside(mx, my, x, yy + 120, rw, 32)) c.crosshairGap = c.crosshairGap >= 12 ? 0 : c.crosshairGap + 1;
-        else if (inside(mx, my, x, yy + 159, rw, 32)) c.crosshairThickness = c.crosshairThickness >= 5 ? 1 : c.crosshairThickness + 1;
-        else if (inside(mx, my, x, yy + 244, rw, 32)) c.swingSpeedTicks = Math.min(20, c.swingSpeedTicks + 1);
-        else if (inside(mx, my, x, yy + 283, rw, 32)) c.swingSpeedTicks = c.swingSpeedTicks == 20 ? 6 : c.swingSpeedTicks == 6 ? 3 : 20;
-        else if (inside(mx, my, x, yy + 365, rw, 32)) c.crosshairDynamic = !c.crosshairDynamic;
-        else if (inside(mx, my, x, yy + 404, rw, 32)) c.crosshairOutline = !c.crosshairOutline;
-        else if (inside(mx, my, x, yy + 443, rw, 32) && client != null) {
-            Config.save(); client.setScreen(new HudEditorScreen()); return;
-        } else if (inside(mx, my, x, yy + 525, rw, 32)) c.donutLiveAutoTrack = !c.donutLiveAutoTrack;
-        else if (inside(mx, my, x, yy + 564, rw, 32)) c.donutLiveShowTotal = !c.donutLiveShowTotal;
-        else if (inside(mx, my, x, yy + 603, rw, 32)) c.donutLiveShowLastPayment = !c.donutLiveShowLastPayment;
-        else if (inside(mx, my, x, yy + 642, rw, 32)) c.donutLiveShowPayer = !c.donutLiveShowPayer;
-        else if (inside(mx, my, x, yy + 681, rw, 32)) c.donutLiveShowPaymentCount = !c.donutLiveShowPaymentCount;
+    private void viewToggle(DrawContext ctx, String key, int x, int y, String[] bmp, boolean active, Runnable action) {
+        float h = anim(key, hover(x, y, 18, 16) ? 1f : 0f, 16f);
+        int bg = active ? mix(cCard, cAccent, 0.28f) : mix(cMain, cCard, 0.5f + 0.5f * h);
+        rrectBorder(ctx, x, y, 18, 16, 4, bg, active ? mix(cBorder, cAccent, 0.6f) : cBorder);
+        icon(ctx, bmp, x + 5, y + (16 - bmp.length) / 2, active ? cText : mix(cMuted, cText, h));
+        addHit(x, y, 18, 16, action);
+    }
+
+    private void drawSearchBox(DrawContext ctx, int x, int y, int w, int h) {
+        boolean hov = hover(x, y, w, h);
+        float f = anim("search-focus", searchFocused ? 1f : 0f, 14f);
+        float hv = anim("search-hover", hov ? 1f : 0f, 14f);
+        rrectBorder(ctx, x, y, w, h, 5, mix(cCard, cCardHover, Math.max(f * 0.6f, hv * 0.4f)),
+                mix(cBorder, cAccent, Math.max(f, hv * 0.4f)));
+        icon(ctx, ICON_SEARCH, x + 7, y + 6, mix(cMuted, cAccent, f));
+        int tx = x + 20, avail = w - 28;
+        if (searchText.isEmpty()) {
+            text(ctx, "Search modules", tx, y + 6, cMuted, false);
+        } else {
+            String shown = searchText;
+            while (shown.length() > 1 && textRenderer.getWidth(shown) > avail) shown = shown.substring(1);
+            text(ctx, shown, tx, y + 6, cText, false);
+            tx += textRenderer.getWidth(shown);
+        }
+        if (searchFocused && (System.currentTimeMillis() / 500L) % 2L == 0L) fillRect(ctx, tx + 1, y + 5, 1, 10, cAccent);
+        addHit(x, y, w, h, () -> searchFocused = true);
+    }
+
+    // ---------------------------------------------------------------------
+    //  Modules list / grid
+    // ---------------------------------------------------------------------
+
+    private void drawModuleList(DrawContext ctx, boolean searching) {
+        List<Module> mods = filteredModules();
+        int cols = gridView ? (cw >= 430 ? 2 : 1) : 1;
+        int gap = gridView ? 8 : ROW_GAP;
+        int itemH = gridView ? 56 : 42;
+        int colW = (cw - gap * (cols - 1)) / cols;
+
+        for (int i = 0; i < mods.size(); i++) {
+            int x0 = cx + (i % cols) * (colW + gap);
+            int y0 = cy + (i / cols) * (itemH + gap);
+            if (y0 + itemH < vpT || y0 > vpB) continue;
+            drawModuleItem(ctx, mods.get(i), x0, y0, colW, itemH, searching);
+        }
+        int rows = (mods.size() + cols - 1) / cols;
+        cy += rows * (itemH + gap);
+
+        if (mods.isEmpty()) {
+            textCentered(ctx, "No modules match your search", cx + cw / 2, cy + 24, cMuted, false);
+            textCentered(ctx, "Try a different word", cx + cw / 2, cy + 38, mix(cMuted, cMain, 0.4f), false);
+            cy += 60;
+        }
+    }
+
+    private void drawModuleItem(DrawContext ctx, Module m, int x0, int y0, int w, int h, boolean searching) {
+        boolean hov = hover(x0, y0, w, h);
+        float hv = anim("row:" + m.id, hov ? 1f : 0f, 16f);
+        float on = anim("tog:" + m.id, m.isEnabled() ? 1f : 0f, 14f);
+
+        rrectBorder(ctx, x0, y0, w, h, 5, mix(cCard, cCardHover, hv), mix(cBorder, cAccent, Math.max(hv * 0.45f, on * 0.18f)));
+        if (on > 0.02f) rrect(ctx, x0 + 1, y0 + 10, 2, h - 20, 1, withA(cAccent, Math.round(255 * on)));
+
+        int swW = 28, swH = 14;
+        int swX = x0 + w - 14 - swW, swY = y0 + (h - swH) / 2;
+        int textMax = w - 14 - swW - 14 - (gridView ? 8 : 38);
+
+        int nameY = y0 + (gridView ? 11 : 10);
+        text(ctx, fit(m.name, textMax), x0 + 14, nameY, cText, false);
+        if (searching) {
+            int nw = textRenderer.getWidth(fit(m.name, textMax));
+            text(ctx, fit(m.category.toUpperCase(Locale.ROOT), Math.max(0, textMax - nw - 10)), x0 + 14 + nw + 8, nameY, mix(cMuted, cAccent, 0.5f), false);
+        }
+        text(ctx, fit(m.description, textMax), x0 + 14, nameY + 13, cMuted, false);
+
+        if (!gridView) {
+            icon(ctx, ICON_CHEV_R, swX - 22, y0 + (h - 7) / 2, mix(mix(cMuted, cMain, 0.3f), cText, hv));
+        }
+        drawSwitch(ctx, swX, swY, swW, swH, on);
+
+        addHit(x0, y0, w, h, () -> openModule(m));
+        addHit(swX - 6, y0 + 4, swW + 12, h - 8, m::toggle);
+    }
+
+    // ---------------------------------------------------------------------
+    //  Module detail
+    // ---------------------------------------------------------------------
+
+    private void drawDetail(DrawContext ctx, Module m) {
+        // Back button.
+        int bw = 64, bh = 20;
+        float bh0 = anim("back", hover(cx, cy, bw, bh) ? 1f : 0f, 16f);
+        rrectBorder(ctx, cx, cy, bw, bh, 5, mix(cCard, cCardHover, bh0), mix(cBorder, cAccent, bh0 * 0.5f));
+        icon(ctx, ICON_CHEV_L, cx + 10, cy + 6, mix(cMuted, cText, bh0));
+        text(ctx, "Back", cx + 22, cy + 6, mix(cMuted, cText, 0.4f + 0.6f * bh0), false);
+        addHit(cx, cy, bw, bh, this::closeDetail);
+        cy += bh + 12;
+
+        // Hero card.
+        float on = anim("tog:" + m.id, m.isEnabled() ? 1f : 0f, 14f);
+        int hh = 70;
+        rrectBorder(ctx, cx, cy, cw, hh, 6, cCard, mix(cBorder, cAccent, on * 0.35f));
+        rrect(ctx, cx + 1, cy + 12, 2, hh - 24, 1, withA(cAccent, Math.round(255 * on)));
+        int swW = 38, swH = 20;
+        int swX = cx + cw - 18 - swW, swY = cy + (hh - swH) / 2;
+        int tMax = cw - 16 - swW - 36;
+        text(ctx, fit(m.name, tMax), cx + 16, cy + 14, cText, true);
+        text(ctx, fit(m.description, tMax), cx + 16, cy + 29, cMuted, false);
+        text(ctx, m.category.toUpperCase(Locale.ROOT), cx + 16, cy + 49, mix(cMuted, cAccent, 0.55f), false);
+        drawSwitch(ctx, swX, swY, swW, swH, on);
+        addHit(swX - 8, swY - 8, swW + 16, swH + 16, m::toggle);
+        cy += hh + 18;
+
+        section(ctx, "MODULE SETTINGS", "Controls for this feature");
+        rowSwitch(ctx, "m-state", "Module state", "Turn this feature on or off", m.isEnabled(), m::toggle);
+        rowChip(ctx, "m-hud", "HUD position", "Move this module's widget in HUD Studio", "Open HUD Studio", this::openStudio);
+        text(ctx, fit("More module-specific options will appear here as they are added.", cw), cx + 2, cy + 6, mix(cMuted, cMain, 0.25f), false);
+        cy += 24;
+    }
+
+    private void openStudio() {
         Config.save();
+        if (client != null) client.setScreen(new HudEditorScreen());
+    }
+
+    // ---------------------------------------------------------------------
+    //  Settings rows
+    // ---------------------------------------------------------------------
+
+    private void section(DrawContext ctx, String title, String sub) {
+        text(ctx, title, cx, cy, cAccent, false);
+        int w = textRenderer.getWidth(title);
+        text(ctx, fit(sub, cw - w - 24), cx + w + 10, cy, cMuted, false);
+        fillRect(ctx, cx, cy + 13, cw, 1, cBorder);
+        cy += 22;
+    }
+
+    private void rowShell(DrawContext ctx, String key, String name, String hint, boolean clickable) {
+        boolean hov = clickable && hover(cx, cy, cw, ROW_H);
+        float h = anim("srow:" + key, hov ? 1f : 0f, 16f);
+        rrectBorder(ctx, cx, cy, cw, ROW_H, 5, mix(cCard, cCardHover, h), mix(cBorder, cAccent, h * 0.45f));
+        text(ctx, fit(name, cw - 170), cx + 14, cy + 8, cText, false);
+        text(ctx, fit(hint, cw - 170), cx + 14, cy + 21, cMuted, false);
+    }
+
+    private void rowSwitch(DrawContext ctx, String key, String name, String hint, boolean value, Runnable toggle) {
+        rowShell(ctx, key, name, hint, true);
+        float t = anim("sw:" + key, value ? 1f : 0f, 14f);
+        drawSwitch(ctx, cx + cw - 14 - 28, cy + (ROW_H - 14) / 2, 28, 14, t);
+        addHit(cx, cy, cw, ROW_H, () -> { toggle.run(); Config.save(); });
+        cy += ROW_H + ROW_GAP;
+    }
+
+    private void rowChip(DrawContext ctx, String key, String name, String hint, String value, Runnable action) {
+        rowShell(ctx, key, name, hint, true);
+        int w = Math.max(56, textRenderer.getWidth(value) + 22);
+        int x = cx + cw - 12 - w, y = cy + (ROW_H - 20) / 2;
+        float h = anim("chip:" + key, hover(x, y, w, 20) ? 1f : 0f, 16f);
+        rrect(ctx, x, y, w, 20, 5, mix(mix(cCard, cAccent, 0.22f), cAccent, h * 0.30f));
+        textCentered(ctx, value, x + w / 2, y + 6, mix(mix(cAccent, cText, 0.35f), cText, h * 0.5f), false);
+        addHit(cx, cy, cw, ROW_H, () -> { action.run(); Config.save(); });
+        cy += ROW_H + ROW_GAP;
+    }
+
+    private void rowStepper(DrawContext ctx, String key, String name, String hint, String value, Runnable minus, Runnable plus) {
+        rowShell(ctx, key, name, hint, false);
+        int by = cy + (ROW_H - 18) / 2;
+        int plusX = cx + cw - 12 - 18, valX = plusX - 56, minusX = valX - 18;
+        stepButton(ctx, key + "-", minusX, by, false);
+        stepButton(ctx, key + "+", plusX, by, true);
+        textCentered(ctx, value, valX + 28, by + 5, mix(cAccent, cText, 0.25f), false);
+        addHit(minusX, by, 18, 18, () -> { minus.run(); Config.save(); });
+        addHit(plusX, by, 18, 18, () -> { plus.run(); Config.save(); });
+        cy += ROW_H + ROW_GAP;
+    }
+
+    private void stepButton(DrawContext ctx, String key, int x, int y, boolean plus) {
+        float h = anim("step:" + key, hover(x, y, 18, 18) ? 1f : 0f, 18f);
+        rrectBorder(ctx, x, y, 18, 18, 5, mix(mix(cCard, cMain, 0.3f), cCardHover, h), mix(cBorder, cAccent, h * 0.6f));
+        int c = mix(cMuted, cAccent, h);
+        fillRect(ctx, x + 5, y + 8, 8, 2, c);
+        if (plus) fillRect(ctx, x + 8, y + 5, 2, 8, c);
+    }
+
+    private void drawSettings(DrawContext ctx) {
+        Config c = Config.get();
+        String[] shapes = {"Cross", "Dot", "Circle", "Cross + Dot"};
+
+        section(ctx, "CROSSHAIR STUDIO", "Shape, size and behaviour");
+        rowChip(ctx, "shape", "Crosshair shape", "Click to change",
+                shapes[Math.max(0, Math.min(3, c.crosshairShape))], () -> c.crosshairShape = (c.crosshairShape + 1) % 4);
+        rowStepper(ctx, "size", "Crosshair size", "Arm length in pixels", c.crosshairSize + " px",
+                () -> c.crosshairSize = Math.max(1, c.crosshairSize - 1), () -> c.crosshairSize = Math.min(24, c.crosshairSize + 1));
+        rowStepper(ctx, "gap", "Crosshair gap", "Space around the centre", c.crosshairGap + " px",
+                () -> c.crosshairGap = Math.max(0, c.crosshairGap - 1), () -> c.crosshairGap = Math.min(12, c.crosshairGap + 1));
+        rowStepper(ctx, "thick", "Crosshair thickness", "Line width in pixels", c.crosshairThickness + " px",
+                () -> c.crosshairThickness = Math.max(1, c.crosshairThickness - 1), () -> c.crosshairThickness = Math.min(5, c.crosshairThickness + 1));
+
+        cy += 8;
+        section(ctx, "ANIMATION", "Local first-person swing animation");
+        rowStepper(ctx, "swing", "Swing speed", "Lower is faster", c.swingSpeedTicks + " ticks",
+                () -> c.swingSpeedTicks = Math.max(1, c.swingSpeedTicks - 1), () -> c.swingSpeedTicks = Math.min(20, c.swingSpeedTicks + 1));
+        String preset = c.swingSpeedTicks == 20 ? "Slow" : c.swingSpeedTicks == 3 ? "Prestige" : c.swingSpeedTicks == 6 ? "Vanilla" : "Custom";
+        rowChip(ctx, "preset", "Swing preset", "Click to cycle", preset,
+                () -> c.swingSpeedTicks = c.swingSpeedTicks == 20 ? 6 : c.swingSpeedTicks == 6 ? 3 : 20);
+
+        cy += 8;
+        section(ctx, "HUD CUSTOMISATION", "Position and colour");
+        rowSwitch(ctx, "dyn", "Dynamic crosshair", "Expands while moving", c.crosshairDynamic, () -> c.crosshairDynamic = !c.crosshairDynamic);
+        rowSwitch(ctx, "outline", "Crosshair outline", "Dark edge for contrast", c.crosshairOutline, () -> c.crosshairOutline = !c.crosshairOutline);
+        rowChip(ctx, "studio", "HUD Studio", "Drag individual widgets", "Open", this::openStudio);
+
+        cy += 8;
+        section(ctx, "DONUTSMP LIVE TRACKER", "Automatic tracking and HUD display");
+        rowSwitch(ctx, "d-auto", "Auto track payments", "Detect incoming payments", c.donutLiveAutoTrack, () -> c.donutLiveAutoTrack = !c.donutLiveAutoTrack);
+        rowSwitch(ctx, "d-total", "Show total earned", "Running total on the HUD", c.donutLiveShowTotal, () -> c.donutLiveShowTotal = !c.donutLiveShowTotal);
+        rowSwitch(ctx, "d-last", "Show last payment", "Most recent payment amount", c.donutLiveShowLastPayment, () -> c.donutLiveShowLastPayment = !c.donutLiveShowLastPayment);
+        rowSwitch(ctx, "d-payer", "Show payer name", "Who sent the last payment", c.donutLiveShowPayer, () -> c.donutLiveShowPayer = !c.donutLiveShowPayer);
+        rowSwitch(ctx, "d-count", "Show payment count", "Number of payments received", c.donutLiveShowPaymentCount, () -> c.donutLiveShowPaymentCount = !c.donutLiveShowPaymentCount);
+    }
+
+    // ---------------------------------------------------------------------
+    //  Themes
+    // ---------------------------------------------------------------------
+
+    private void drawThemes(DrawContext ctx) {
+        int cols = cw >= 560 ? 3 : 2;
+        int gap = 10, cardH = 98;
+        int cardW = (cw - gap * (cols - 1)) / cols;
+        int current = Config.get().themeId;
+
+        for (int i = 0; i < THEME_NAMES.length; i++) {
+            int x0 = cx + (i % cols) * (cardW + gap);
+            int y0 = cy + (i / cols) * (cardH + gap);
+            if (y0 + cardH < vpT || y0 > vpB) continue;
+            final int index = i;
+            boolean active = current == i;
+            float h = anim("theme:" + i, hover(x0, y0, cardW, cardH) ? 1f : 0f, 16f);
+            float a = anim("theme-active:" + i, active ? 1f : 0f, 12f);
+            int[] t = THEME_COLORS[i];
+
+            rrectBorder(ctx, x0, y0, cardW, cardH, 6, mix(cCard, cCardHover, h), mix(mix(cBorder, cAccent, h * 0.5f), cAccent, a));
+
+            // Miniature window preview in that theme's colours.
+            int pvx = x0 + 8, pvy = y0 + 8, pvw = cardW - 16, pvh = 52;
+            int sbw = Math.max(16, pvw * 28 / 100);
+            rrect(ctx, pvx, pvy, pvw, pvh, 4, t[P_MAIN] | 0xFF000000);
+            rrect(ctx, pvx + 2, pvy + 2, sbw, pvh - 4, 3, t[P_SIDEBAR] | 0xFF000000);
+            for (int k = 0; k < 3; k++) {
+                int col = k == 0 ? t[P_ACCENT] : mix(t[P_SIDEBAR] | 0xFF000000, t[P_MUTED] | 0xFF000000, 0.5f);
+                rrect(ctx, pvx + 7, pvy + 9 + k * 9, sbw - 10, 4, 2, col | 0xFF000000);
+            }
+            for (int k = 0; k < 2; k++) {
+                int ry = pvy + 6 + k * 22;
+                rrect(ctx, pvx + sbw + 6, ry, pvw - sbw - 10, 18, 3, t[P_CARD] | 0xFF000000);
+                rrect(ctx, pvx + pvw - 22, ry + 6, 12, 6, 3, t[P_ACCENT] | 0xFF000000);
+                rrect(ctx, pvx + sbw + 11, ry + 5, Math.max(8, (pvw - sbw) / 4), 3, 1, t[P_TEXT] | 0xFF000000);
+                rrect(ctx, pvx + sbw + 11, ry + 11, Math.max(6, (pvw - sbw) / 6), 2, 1, t[P_MUTED] | 0xFF000000);
+            }
+
+            text(ctx, THEME_NAMES[i], x0 + 12, y0 + 72, cText, false);
+            String label = active ? "ACTIVE" : "SELECT";
+            int lw = textRenderer.getWidth(label);
+            int lc = active ? cAccent : mix(cMuted, cText, h);
+            text(ctx, label, x0 + cardW - 12 - lw, y0 + 72, lc, false);
+            if (active) icon(ctx, ICON_CHECK, x0 + cardW - 12 - lw - 11, y0 + 73, cAccent);
+
+            addHit(x0, y0, cardW, cardH, () -> { Config.get().themeId = index; Config.save(); });
+        }
+        int rows = (THEME_NAMES.length + cols - 1) / cols;
+        cy += rows * (cardH + gap);
+    }
+
+    // ---------------------------------------------------------------------
+    //  Profiles
+    // ---------------------------------------------------------------------
+
+    private void drawProfiles(DrawContext ctx) {
+        String[] names = {"PvP", "Clean", "Builder"};
+        String[] keys = {"pvp", "clean", "builder"};
+        String[] desc = {"Combat HUD, crosshair, keystrokes and performance",
+                "Minimal FPS, coordinates and keystrokes",
+                "Coordinates, world time, held item and FPS"};
+        long now = System.currentTimeMillis();
+        for (int i = 0; i < names.length; i++) {
+            final int index = i;
+            int h0 = 62;
+            boolean hov = hover(cx, cy, cw, h0);
+            float h = anim("prof:" + i, hov ? 1f : 0f, 16f);
+            rrectBorder(ctx, cx, cy, cw, h0, 6, mix(cCard, cCardHover, h), mix(cBorder, cAccent, h * 0.5f));
+            rrect(ctx, cx + 1, cy + 12, 2, h0 - 24, 1, cAccent);
+            boolean flashed = now < profileFlash[i];
+            String label = flashed ? "Applied" : "Apply";
+            int w = Math.max(64, textRenderer.getWidth(label) + 26);
+            int bx = cx + cw - 14 - w, by = cy + (h0 - 22) / 2;
+            text(ctx, names[i], cx + 18, cy + 15, cText, true);
+            text(ctx, fit(desc[i], bx - cx - 36), cx + 18, cy + 33, cMuted, false);
+            float bh = anim("prof-btn:" + i, hover(bx, by, w, 22) ? 1f : 0f, 16f);
+            rrect(ctx, bx, by, w, 22, 5, flashed ? mix(cAccent, cMain, 0.15f) : mix(mix(cCard, cAccent, 0.25f), cAccent, bh * 0.35f));
+            textCentered(ctx, label, bx + w / 2, by + 7, flashed ? 0xFFFFFFFF : mix(mix(cAccent, cText, 0.35f), cText, bh * 0.5f), false);
+            addHit(cx, cy, cw, h0, () -> { applyProfile(keys[index]); profileFlash[index] = System.currentTimeMillis() + 1400L; });
+            cy += h0 + 10;
+        }
     }
 
     private void applyProfile(String profile) {
@@ -448,12 +902,78 @@ public class ConfigScreen extends Screen {
         Config.save();
     }
 
+    // =====================================================================
+    //  Input
+    // =====================================================================
+
+    @Override
+    public boolean mouseClicked(Click click, boolean doubled) {
+        if (click.button() != 0) return super.mouseClicked(click, doubled);
+        double x = click.x(), y = click.y();
+
+        // Scrollbar drag.
+        if (scrollMax > 0.5f && inside(x, y, px + pw - 14, vpT, 12, vpB - vpT)) {
+            draggingScroll = true;
+            setScrollFromMouse(y);
+            return true;
+        }
+
+        searchFocused = false;
+        for (int i = hits.size() - 1; i >= 0; i--) {
+            Hit hit = hits.get(i);
+            if (inside(x, y, hit.x(), hit.y(), hit.w(), hit.h())) {
+                hit.action().run();
+                return true;
+            }
+        }
+        return true;
+    }
+
+    private void setScrollFromMouse(double mouseY) {
+        int vpH = vpB - vpT;
+        float range = Math.max(1f, vpH - thumbH);
+        float f = (float) ((mouseY - vpT - thumbH / 2.0) / range);
+        scrollTarget = Math.max(0f, Math.min(scrollMax, f * scrollMax));
+        scroll = scrollTarget;
+    }
+
+    @Override
+    public boolean mouseDragged(Click click, double offsetX, double offsetY) {
+        if (draggingScroll) {
+            setScrollFromMouse(click.y());
+            return true;
+        }
+        return super.mouseDragged(click, offsetX, offsetY);
+    }
+
+    @Override
+    public boolean mouseReleased(Click click) {
+        if (draggingScroll) {
+            draggingScroll = false;
+            return true;
+        }
+        return super.mouseReleased(click);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (inside(mouseX, mouseY, px, py + 48, sw, ph - 75)) {
+            navScrollTarget = Math.max(0f, Math.min(navMax, navScrollTarget - (float) verticalAmount * 28f));
+            return true;
+        }
+        if (inside(mouseX, mouseY, px + sw, py + 58, pw - sw, ph - 58)) {
+            scrollTarget = Math.max(0f, Math.min(scrollMax, scrollTarget - (float) verticalAmount * 34f));
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+    }
+
     @Override
     public boolean charTyped(CharInput input) {
         int codePoint = input.codepoint();
-        if (searchFocused && isCategory() && !Character.isISOControl(codePoint)) {
-            searchText += new String(Character.toChars(codePoint));
-            scroll = 0;
+        if (searchFocused && isCategory() && selectedModuleId == null && !Character.isISOControl(codePoint)) {
+            if (searchText.length() < 40) searchText += new String(Character.toChars(codePoint));
+            scroll = scrollTarget = 0f;
             return true;
         }
         return super.charTyped(input);
@@ -462,32 +982,20 @@ public class ConfigScreen extends Screen {
     @Override
     public boolean keyPressed(KeyInput input) {
         if (searchFocused && isCategory()) {
-            if (input.key() == GLFW.GLFW_KEY_BACKSPACE && !searchText.isEmpty()) {
-                searchText = searchText.substring(0, searchText.length() - 1);
-                scroll = 0;
+            int key = input.key();
+            if (key == GLFW.GLFW_KEY_BACKSPACE) {
+                if (!searchText.isEmpty()) {
+                    searchText = searchText.substring(0, searchText.length() - 1);
+                    scroll = scrollTarget = 0f;
+                }
                 return true;
             }
-            if (input.key() == GLFW.GLFW_KEY_ESCAPE) { searchFocused = false; return true; }
+            if (key == GLFW.GLFW_KEY_ESCAPE || key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
+                searchFocused = false;
+                return true;
+            }
         }
         return super.keyPressed(input);
-    }
-
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        int x = left(), y = top(), sx = x + sideW();
-        if (!inside(mouseX, mouseY, sx, y + 58, mainW(), panelH() - 70)) {
-            return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
-        }
-        if (isCategory()) {
-            int rows = Math.max(1, (panelH() - 164) / 98);
-            int max = Math.max(0, (filteredModules().size() - 1) / 2 - rows + 1);
-            scroll = Math.max(0, Math.min(max, scroll + (verticalAmount < 0 ? 1 : -1)));
-            return true;
-        }
-        int maxContent = currentTab.equals(SETTINGS) ? 430 : currentTab.equals(THEMES) ? 80 : 60;
-        contentScroll = Math.max(0, Math.min(maxContent,
-                contentScroll + (verticalAmount < 0 ? 36 : -36)));
-        return true;
     }
 
     @Override
