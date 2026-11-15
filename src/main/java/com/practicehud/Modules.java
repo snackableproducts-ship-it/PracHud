@@ -120,6 +120,8 @@ public final class Modules {
         add("keystrokes", "Keystrokes", CAT_VISUAL, "Shows WASD, jump, sneak and sprint key states.", Modules::keystrokesHud);
         add("held_item", "Held Item HUD", CAT_VISUAL, "Shows the held item name, count and durability.", Modules::heldItemHud);
         add("world_time", "World Time", CAT_VISUAL, "Displays the current local world time.", Modules::worldTimeHud);
+        add("swing_speed", "Swing Speed", CAT_VISUAL,
+                "Speeds up your local first-person arm swing animation. Does not change attack speed or damage.", null);
     }
 
     // =====================================================================
