@@ -138,6 +138,16 @@ public final class ArrayGuiScreen extends Screen {
             }
         }
 
+        if (Config.get().themeId == 6) {
+            int bob = Math.round((float)Math.sin(System.nanoTime() / 260_000_000.0) * 1.5f);
+            int hx = width / 2 - 7, hy = 3 + bob;
+            ctx.fill(hx + 2, hy + 10, hx + 20, hy + 15, 0xFFF7F4EF);
+            ctx.fill(hx + 5, hy + 6, hx + 14, hy + 11, 0xFFE53945);
+            ctx.fill(hx + 9, hy + 3, hx + 17, hy + 7, 0xFFE53945);
+            ctx.fill(hx + 14, hy + 1, hx + 20, hy + 5, 0xFFE53945);
+            ctx.fill(hx + 18, hy, hx + 22, hy + 4, 0xFFF7F4EF);
+        }
+
         String footer = "XMCORE  /  RIGHT SHIFT TO CLOSE";
         ctx.drawText(textRenderer, footer, 8, height - 12, 0xAAE3E8F0, false);
         String label = "CLASSIC ARRAY  •  " + Modules.ALL.size() + " REGISTERED";
