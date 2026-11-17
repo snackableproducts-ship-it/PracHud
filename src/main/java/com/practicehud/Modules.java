@@ -324,6 +324,11 @@ public final class Modules {
             Optional<Vec3d> hit = t.getBoundingBox().expand(t.getTargetingMargin()).raycast(start, end);
             if (hit.isPresent()) {
                 double d = start.squaredDistanceTo(hit.get());
+                // Keep the extended name display limited to targets with a clear line of sight.
+                BlockHitResult obstruction = mc.world.raycast(new RaycastContext(start, hit.get(),
+                        RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, cam));
+                if (obstruction.getType() != HitResult.Type.MISS
+                        && start.squaredDistanceTo(obstruction.getPos()) < d) continue;
                 if (d < bestD) {
                     bestD = d;
                     best = t;
@@ -587,7 +592,7 @@ public final class Modules {
     }
 
     private static void entityInfo(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
-        LivingEntity t = lookedAt(mc, 32);
+        LivingEntity t = lookedAt(mc, 128);
         if (t == null) return;
         int cx = ctx.getScaledWindowWidth() / 2;
         int y = ctx.getScaledWindowHeight() / 2 + 18;
