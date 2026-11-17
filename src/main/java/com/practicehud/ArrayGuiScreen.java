@@ -25,8 +25,12 @@ public final class ArrayGuiScreen extends Screen {
     // Mirrors the complete live module registry; no separate visibility list.
     private record Group(String title, int tint, List<Module> modules) {}
     private record Hit(int x, int y, int w, int h, Runnable action) {}
+    private record HeaderHit(String category, int x, int y, int w, int h) {}
     private final List<Hit> hits = new ArrayList<>();
+    private final List<HeaderHit> headers = new ArrayList<>();
     private int scroll;
+    private String draggingCategory;
+    private int dragMouseX, dragMouseY;
 
     public ArrayGuiScreen() { super(Text.literal("XMCore Array")); }
 
@@ -65,6 +69,7 @@ public final class ArrayGuiScreen extends Screen {
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         super.render(ctx, mouseX, mouseY, delta);
         hits.clear();
+        headers.clear();
         List<Group> groups = groups();
         int columns = columnsForWidth();
         int margin = 12;
@@ -93,8 +98,9 @@ public final class ArrayGuiScreen extends Screen {
         for (int i = 0; i < groups.size(); i++) {
             Group group = groups.get(i);
             int col = i % columns, row = i / columns;
-            int x = startX + col * (panelW + GAP);
-            int y = rowY[row] - scroll;
+            int[] offset = Config.get().arrayGuiOffsets.getOrDefault(group.title(), new int[]{0, 0});
+            int x = startX + col * (panelW + GAP) + offset[0];
+            int y = rowY[row] - scroll + offset[1];
             int panelH = HEADER_H + group.modules().size() * ROW_H + 4;
             if (y + panelH < TOP || y > bottom) continue;
 
@@ -103,6 +109,7 @@ public final class ArrayGuiScreen extends Screen {
             ctx.fill(x, y, x + 2, y + HEADER_H, group.tint());
             ctx.fill(x, y, x + panelW, y + 1, BORDER);
             ctx.drawText(textRenderer, group.title(), x + 8, y + 7, group.tint(), false);
+            headers.add(new HeaderHit(group.title(), x, y, panelW, HEADER_H));
 
             int active = 0;
             for (Module module : group.modules()) if (module.isEnabled()) active++;
@@ -150,8 +157,42 @@ public final class ArrayGuiScreen extends Screen {
     }
 
     @Override
+    public boolean mouseDragged(Click click, double offsetX, double offsetY) {
+        if (draggingCategory != null && click.button() == 0) {
+            int dx = (int)Math.round(click.x()) - dragMouseX;
+            int dy = (int)Math.round(click.y()) - dragMouseY;
+            int[] old = Config.get().arrayGuiOffsets.getOrDefault(draggingCategory, new int[]{0, 0});
+            Config.get().arrayGuiOffsets.put(draggingCategory, new int[]{old[0] + dx, old[1] + dy});
+            dragMouseX = (int)Math.round(click.x());
+            dragMouseY = (int)Math.round(click.y());
+            return true;
+        }
+        return super.mouseDragged(click, offsetX, offsetY);
+    }
+
+    @Override
+    public boolean mouseReleased(Click click) {
+        if (draggingCategory != null) {
+            draggingCategory = null;
+            Config.save();
+            return true;
+        }
+        return super.mouseReleased(click);
+    }
+
+    @Override
     public boolean mouseClicked(Click click, boolean doubled) {
         if (click.button() != 0) return super.mouseClicked(click, doubled);
+        for (int i = headers.size() - 1; i >= 0; i--) {
+            HeaderHit header = headers.get(i);
+            if (click.x() >= header.x() && click.x() < header.x() + header.w()
+                && click.y() >= header.y() && click.y() < header.y() + header.h()) {
+                draggingCategory = header.category();
+                dragMouseX = (int)Math.round(click.x());
+                dragMouseY = (int)Math.round(click.y());
+                return true;
+            }
+        }
         for (int i = hits.size() - 1; i >= 0; i--) {
             Hit hit = hits.get(i);
             if (click.x() >= hit.x() && click.x() < hit.x() + hit.w()
