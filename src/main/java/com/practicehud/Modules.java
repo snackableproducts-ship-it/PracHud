@@ -324,11 +324,9 @@ public final class Modules {
             Optional<Vec3d> hit = t.getBoundingBox().expand(t.getTargetingMargin()).raycast(start, end);
             if (hit.isPresent()) {
                 double d = start.squaredDistanceTo(hit.get());
-                // Keep the extended name display limited to targets with a clear line of sight.
-                BlockHitResult obstruction = mc.world.raycast(new RaycastContext(start, hit.get(),
-                        RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, cam));
-                if (obstruction.getType() != HitResult.Type.MISS
-                        && start.squaredDistanceTo(obstruction.getPos()) < d) continue;
+                // A target can be partly exposed around a block edge. Check several
+                // points on its bounds instead of rejecting it from one blocked point.
+                if (!hasVisiblePoint(mc, cam, t, start, hit.get())) continue;
                 if (d < bestD) {
                     bestD = d;
                     best = t;
@@ -336,6 +334,31 @@ public final class Modules {
             }
         }
         return best;
+    }
+
+    private static boolean hasVisiblePoint(MinecraftClient mc, net.minecraft.entity.Entity camera,
+                                           LivingEntity target, Vec3d start, Vec3d firstHit) {
+        var box = target.getBoundingBox();
+        double midX = (box.minX + box.maxX) * 0.5;
+        double midY = (box.minY + box.maxY) * 0.5;
+        double midZ = (box.minZ + box.maxZ) * 0.5;
+        Vec3d[] samples = {
+                firstHit,
+                new Vec3d(midX, box.minY + 0.08, midZ),
+                new Vec3d(midX, box.maxY - 0.08, midZ),
+                new Vec3d(box.minX + 0.04, midY, midZ),
+                new Vec3d(box.maxX - 0.04, midY, midZ),
+                new Vec3d(midX, midY, box.minZ + 0.04),
+                new Vec3d(midX, midY, box.maxZ - 0.04)
+        };
+        for (Vec3d sample : samples) {
+            BlockHitResult obstruction = mc.world.raycast(new RaycastContext(start, sample,
+                    RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, camera));
+            if (obstruction.getType() == HitResult.Type.MISS
+                    || start.squaredDistanceTo(obstruction.getPos()) + 1.0E-4
+                    >= start.squaredDistanceTo(sample)) return true;
+        }
+        return false;
     }
 
     private static String effectName(StatusEffectInstance e) {
