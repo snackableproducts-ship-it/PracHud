@@ -771,6 +771,14 @@ public class ConfigScreen extends Screen {
         Config c = Config.get();
         String[] shapes = {"Cross", "Dot", "Circle", "Cross + Dot"};
 
+        section(ctx, "INTERFACE", "Choose your module layout");
+        rowChip(ctx, "gui-style", "GUI style", "Switch between XMCore and classic array",
+                c.guiStyle == 1 ? "Classic Array" : "XMCore",
+                () -> {
+                    c.guiStyle = c.guiStyle == 1 ? 0 : 1;
+                    if (client != null) client.setScreen(c.guiStyle == 1 ? new ArrayGuiScreen() : this);
+                });
+
         section(ctx, "CROSSHAIR STUDIO", "Shape, size and behaviour");
         rowChip(ctx, "shape", "Crosshair shape", "Click to change",
                 shapes[Math.max(0, Math.min(3, c.crosshairShape))], () -> c.crosshairShape = (c.crosshairShape + 1) % 4);
