@@ -76,6 +76,9 @@ public final class Config {
     // 0 Midnight, 1 Purple, 2 Ocean, 3 Crimson, 4 Light
     public int themeId = 1;
 
+    // 0 = XMCore panel GUI, 1 = classic multi-column array GUI.
+    public int guiStyle = 0;
+
     // Target tracking ring
     public int ringRadius = 40;
     public int ringColor = 0xFF55FFFF;
@@ -105,6 +108,7 @@ public final class Config {
                     if (c.quickSlots == null || c.quickSlots.length != 4) c.quickSlots = new int[]{0, 1, 2, 3};
                     if (c.swingSpeedTicks < 1 || c.swingSpeedTicks > 20) c.swingSpeedTicks = 6;
                     c.hudScale = Math.max(0.75, Math.min(1.5, c.hudScale));
+                    c.guiStyle = Math.max(0, Math.min(1, c.guiStyle));
                     instance = c;
                 }
             }
