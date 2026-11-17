@@ -78,6 +78,8 @@ public final class Config {
 
     // 0 = XMCore panel GUI, 1 = classic multi-column array GUI.
     public int guiStyle = 0;
+    // Per-category offsets for freely arranging Classic Array panels.
+    public Map<String, int[]> arrayGuiOffsets = new LinkedHashMap<>();
 
     // Target tracking ring
     public int ringRadius = 40;
@@ -105,6 +107,7 @@ public final class Config {
                     if (c.modules == null) c.modules = new LinkedHashMap<>();
                     if (c.donutPlayerEarnings == null) c.donutPlayerEarnings = new LinkedHashMap<>();
                     if (c.hudPositions == null) c.hudPositions = new HashMap<>();
+                    if (c.arrayGuiOffsets == null) c.arrayGuiOffsets = new LinkedHashMap<>();
                     if (c.quickSlots == null || c.quickSlots.length != 4) c.quickSlots = new int[]{0, 1, 2, 3};
                     if (c.swingSpeedTicks < 1 || c.swingSpeedTicks > 20) c.swingSpeedTicks = 6;
                     c.hudScale = Math.max(0.75, Math.min(1.5, c.hudScale));
