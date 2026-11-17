@@ -3,7 +3,9 @@ package com.practicehud;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,20 +22,7 @@ public final class ArrayGuiScreen extends Screen {
     private static final int OFF = 0xFF454B56;
     private static final int ROW_H = 18, HEADER_H = 23, TOP = 15, GAP = 7;
 
-    // Only non-combat HUD, visual, ambience and ordinary information modules.
-    // This is a visibility filter, not a second module registry.
-    private static final Set<String> SHOWN = Set.of(
-        "no_fire_overlay", "no_nausea_overlay", "no_portal_overlay", "no_vignette",
-        "swing_speed", "fps_counter", "coordinates", "armor_status", "potion_hud",
-        "keystrokes", "held_item", "world_time", "fps_graph", "session_stats",
-        "storage_display", "animation_settings", "crosshair_settings", "reticle",
-        "ambient_particles", "ambient_audio",
-        "cart_speed", "rail_counter",
-        "potion_assist", "potion_manager",
-        "donut_balance", "donut_earnings", "donut_top_earners",
-        "donut_goal_alert", "donut_auction", "donut_stream_info"
-    );
-
+    // Mirrors the complete live module registry; no separate visibility list.
     private record Group(String title, int tint, List<Module> modules) {}
     private record Hit(int x, int y, int w, int h, Runnable action) {}
     private final List<Hit> hits = new ArrayList<>();
@@ -57,7 +46,7 @@ public final class ArrayGuiScreen extends Screen {
         for (String category : Modules.CATEGORIES) {
             List<Module> entries = new ArrayList<>();
             for (Module module : Modules.ALL) {
-                if (module.category.equals(category) && SHOWN.contains(module.id)) entries.add(module);
+                if (module.category.equals(category)) entries.add(module);
             }
             if (!entries.isEmpty()) result.add(new Group(category.toUpperCase(), accents[tint++ % accents.length], entries));
         }
@@ -150,6 +139,17 @@ public final class ArrayGuiScreen extends Screen {
     }
 
     @Override
+    public boolean keyPressed(KeyInput input) {
+        if (input.key() == GLFW.GLFW_KEY_RIGHT_SHIFT) {
+            Config.get().guiStyle = 0;
+            Config.save();
+            if (client != null) client.setScreen(new ConfigScreen());
+            return true;
+        }
+        return super.keyPressed(input);
+    }
+
+    @Override
     public boolean mouseClicked(Click click, boolean doubled) {
         if (click.button() != 0) return super.mouseClicked(click, doubled);
         for (int i = hits.size() - 1; i >= 0; i--) {
@@ -169,8 +169,14 @@ public final class ArrayGuiScreen extends Screen {
         List<Group> groups = groups();
         int columns = columnsForWidth();
         int rows = (groups.size() + columns - 1) / columns;
-        int maxPanel = HEADER_H + ROW_H * 10 + 4;
-        int maxScroll = Math.max(0, rows * (maxPanel + GAP) - (height - TOP - 22));
+        int[] rowHeights = new int[rows];
+        for (int i = 0; i < groups.size(); i++) {
+            int panelHeight = HEADER_H + groups.get(i).modules().size() * ROW_H + 4;
+            rowHeights[i / columns] = Math.max(rowHeights[i / columns], panelHeight);
+        }
+        int contentHeight = 0;
+        for (int rowHeight : rowHeights) contentHeight += rowHeight + GAP;
+        int maxScroll = Math.max(0, contentHeight - (height - TOP - 22));
         scroll = Math.max(0, Math.min(maxScroll, scroll - (int)Math.round(verticalAmount * 24)));
         return true;
     }
