@@ -989,6 +989,12 @@ public class ConfigScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyInput input) {
+        if (input.key() == GLFW.GLFW_KEY_RIGHT_SHIFT) {
+            Config.get().guiStyle = 1;
+            Config.save();
+            if (client != null) client.setScreen(new ArrayGuiScreen());
+            return true;
+        }
         if (searchFocused && isCategory()) {
             int key = input.key();
             if (key == GLFW.GLFW_KEY_BACKSPACE) {
