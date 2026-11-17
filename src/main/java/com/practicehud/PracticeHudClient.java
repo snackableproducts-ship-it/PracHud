@@ -58,7 +58,7 @@ public class PracticeHudClient implements ClientModInitializer {
             Modules.tick(client);
             DonutSmp.tick();
             while (openGui.wasPressed()) {
-                client.setScreen(new ConfigScreen());
+                client.setScreen(Config.get().guiStyle == 1 ? new ArrayGuiScreen() : new ConfigScreen());
             }
             while (donutAuctionKey.wasPressed()) {
                 if (client.player != null) client.setScreen(new AuctionSetupScreen());
