@@ -32,13 +32,28 @@ public class ConfigScreen extends Screen {
     // Palette slots (see THEME_COLORS).
     private static final int P_OVERLAY = 0, P_SIDEBAR = 1, P_MAIN = 2, P_CARD = 3, P_ACCENT = 4, P_TEXT = 5, P_MUTED = 6;
 
-    private static final String[] THEME_NAMES = {"Midnight", "Violet", "Ocean", "Crimson", "Light"};
+    private static final String[] THEME_NAMES = {"Midnight", "Violet", "Ocean", "Crimson", "Light", "Halloween", "Christmas", "Sakura", "Emerald", "Sunset", "Cyberpunk", "Arctic", "Rose Gold", "Obsidian", "Lava", "Forest", "Cotton Candy"};
     private static final int[][] THEME_COLORS = {
+            // Classic
             {0xF20A0D20, 0xFF101329, 0xFF0D1023, 0xFF171A31, 0xFF7965F5, 0xFFF1F1FA, 0xFF858BA8},
             {0xF20D0A1C, 0xFF17102B, 0xFF100B20, 0xFF211638, 0xFFB36BFF, 0xFFF7EEFF, 0xFFA994BE},
             {0xF2081520, 0xFF0D202B, 0xFF091923, 0xFF112B38, 0xFF39C6E8, 0xFFEAFBFF, 0xFF82AAB8},
             {0xF21B0A12, 0xFF28101B, 0xFF190B14, 0xFF321522, 0xFFFF5C83, 0xFFFFF0F4, 0xFFB88B9A},
-            {0xF2D9DCE8, 0xFFE9EAF2, 0xFFF5F6FB, 0xFFFFFFFF, 0xFF6554D9, 0xFF202238, 0xFF70758D}
+            {0xF2D9DCE8, 0xFFE9EAF2, 0xFFF5F6FB, 0xFFFFFFFF, 0xFF6554D9, 0xFF202238, 0xFF70758D},
+            // Seasonal
+            {0xF21A0A16, 0xFF24102B, 0xFF140B1B, 0xFF30162E, 0xFFFF7A24, 0xFFFFE7C2, 0xFFB68A9B}, // Halloween
+            {0xF20A1715, 0xFF102820, 0xFF091A16, 0xFF18372A, 0xFFE34B58, 0xFFFFF3DD, 0xFF9FC6AD}, // Christmas
+            // Color stories
+            {0xF21B101C, 0xFF291827, 0xFF170D19, 0xFF382034, 0xFFFF91B8, 0xFFFFF0F6, 0xFFC99BAD}, // Sakura
+            {0xF20A1915, 0xFF102B22, 0xFF091B16, 0xFF17382B, 0xFF48D597, 0xFFE8FFF4, 0xFF86B7A0}, // Emerald
+            {0xF21D1110, 0xFF2B1917, 0xFF1A0E0C, 0xFF3A211D, 0xFFFF986B, 0xFFFFF0E7, 0xFFC59B8D}, // Sunset
+            {0xF2100B20, 0xFF1B1035, 0xFF10091F, 0xFF281744, 0xFF00E5FF, 0xFFF0F8FF, 0xFF9A8BC4}, // Cyberpunk
+            {0xF20C1924, 0xFF142B3B, 0xFF0A1A28, 0xFF1A3547, 0xFF8EDBFF, 0xFFF1FAFF, 0xFF91B4C8}, // Arctic
+            {0xF21C101B, 0xFF2C1927, 0xFF1B0E18, 0xFF3A2332, 0xFFE8B77E, 0xFFFFF2E8, 0xFFC09AAA}, // Rose Gold
+            {0xF20B0D12, 0xFF171A22, 0xFF0D1017, 0xFF202630, 0xFFB7C4D8, 0xFFF4F7FC, 0xFF8793A5}, // Obsidian
+            {0xF21B0B08, 0xFF2B120D, 0xFF190A08, 0xFF3A1910, 0xFFFF6038, 0xFFFFE9D9, 0xFFC58E7D}, // Lava
+            {0xF20C1710, 0xFF17271B, 0xFF0B1710, 0xFF1D3322, 0xFFA3D977, 0xFFF0FFE8, 0xFF9DB68D}, // Forest
+            {0xF21B1220, 0xFF291B32, 0xFF180F20, 0xFF382548, 0xFFB99BFF, 0xFFFFF1FF, 0xFFC0A9D0}  // Cotton Candy
     };
 
     // ---- Persistent UI state (survives reopening the screen) ----
