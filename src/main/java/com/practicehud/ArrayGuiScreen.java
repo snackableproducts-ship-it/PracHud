@@ -8,35 +8,69 @@ import net.minecraft.text.Text;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Compact, multi-column module list inspired by classic Minecraft array GUIs. */
+/**
+ * Compact classic-style array GUI. Uses short, independently scrollable-looking
+ * category columns and the existing module registry/config rather than duplicate state.
+ */
 public final class ArrayGuiScreen extends Screen {
     private static final int PANEL = 0xD9101118;
-    private static final int HEADER = 0xF01B202B;
-    private static final int TEXT = 0xFFE9EDF5;
-    private static final int MUTED = 0xFF858D9D;
-    private static final int ACCENT = 0xFF55D6FF;
-    private static final int ENABLED = 0xFF55B9FF;
-    private static final int DISABLED = 0xFF505765;
+    private static final int HEADER = 0xEE171B24;
+    private static final int BORDER = 0x553A4658;
+    private static final int TEXT = 0xFFE7EAF0;
+    private static final int MUTED = 0xFF8992A1;
+    private static final int ACCENT = 0xFF6AD7E8;
+    private static final int ON = 0xFF67B8E8;
+    private static final int OFF = 0xFF454B56;
+    private static final int ROW_H = 18;
+    private static final int HEADER_H = 23;
+    private static final int TOP = 15;
+    private static final int GAP = 7;
 
-    private record Group(String title, List<String> ids) {}
+    private record Group(String title, String icon, int tint, List<String> ids) {}
     private record Hit(int x, int y, int w, int h, Runnable action) {}
 
     private static final List<Group> GROUPS = List.of(
-        new Group("HUD", List.of("reticle", "fps_counter", "coordinates", "armor_status",
-            "potion_hud", "keystrokes", "held_item", "world_time", "fps_graph",
-            "session_stats", "storage_display", "animation_settings", "crosshair_settings")),
-        new Group("SCREEN FX", List.of("no_fire_overlay", "no_nausea_overlay",
-            "no_portal_overlay", "no_vignette")),
-        new Group("AMBIENCE", List.of("ambient_particles", "ambient_audio")),
-        new Group("DONUTSMP", List.of("donut_balance", "donut_earnings",
-            "donut_top_earners", "donut_goal_alert", "donut_auction", "donut_stream_info"))
+        new Group("HUD", "▰", 0xFF63C6E8, List.of(
+            "fps_counter", "coordinates", "armor_status", "potion_hud", "keystrokes",
+            "held_item", "world_time", "fps_graph", "session_stats", "storage_display"
+        )),
+        new Group("SCREEN FX", "◈", 0xFFB48BEE, List.of(
+            "no_fire_overlay", "no_nausea_overlay", "no_portal_overlay", "no_vignette"
+        )),
+        new Group("RENDER", "◉", 0xFF8ACB83, List.of(
+            "reticle", "animation_settings", "crosshair_settings"
+        )),
+        new Group("AMBIENCE", "✧", 0xFFE5C27A, List.of(
+            "ambient_particles", "ambient_audio"
+        )),
+        new Group("DONUTSMP", "●", 0xFFE7A56D, List.of(
+            "donut_balance", "donut_earnings", "donut_top_earners",
+            "donut_goal_alert", "donut_auction", "donut_stream_info"
+        )),
+        new Group("CLIENT", "✦", 0xFF7EA9F5, List.of())
     );
 
     private final List<Hit> hits = new ArrayList<>();
     private int scroll;
 
     public ArrayGuiScreen() {
-        super(Text.literal("XMCore Array GUI"));
+        super(Text.literal("XMCore Array"));
+    }
+
+    private int columnsForWidth() {
+        if (width >= 1320) return 6;
+        if (width >= 990) return 4;
+        if (width >= 620) return 3;
+        return 2;
+    }
+
+    private String fit(String value, int maxWidth) {
+        if (textRenderer.getWidth(value) <= maxWidth) return value;
+        String result = value;
+        while (!result.isEmpty() && textRenderer.getWidth(result + "…") > maxWidth) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result.isEmpty() ? "" : result + "…";
     }
 
     @Override
@@ -44,63 +78,98 @@ public final class ArrayGuiScreen extends Screen {
         super.render(ctx, mouseX, mouseY, delta);
         hits.clear();
 
-        int margin = 20, gap = 10, panelW = Math.min(210,
-            Math.max(150, (width - margin * 2 - gap * (GROUPS.size() - 1)) / GROUPS.size()));
-        int totalW = panelW * GROUPS.size() + gap * (GROUPS.size() - 1);
-        int startX = Math.max(margin, (width - totalW) / 2);
-        int top = 24, headerH = 27, rowH = 23;
+        int margin = 12;
+        int columns = columnsForWidth();
+        int panelW = Math.max(126, Math.min(204,
+            (width - margin * 2 - GAP * (columns - 1)) / columns));
+        int totalW = columns * panelW + (columns - 1) * GAP;
+        int startX = Math.max(8, (width - totalW) / 2);
+        int bottom = height - 22;
+        int maxRows = 0;
+        for (Group group : GROUPS) maxRows = Math.max(maxRows, group.ids().size());
+        int contentHeight = HEADER_H + maxRows * ROW_H + 8;
+        int maxScroll = Math.max(0, contentHeight - (bottom - TOP));
+        scroll = Math.min(scroll, maxScroll);
 
-        ctx.fill(0, 0, width, height, 0x33000000);
-        for (int col = 0; col < GROUPS.size(); col++) {
-            Group group = GROUPS.get(col);
-            int x = startX + col * (panelW + gap);
-            int y = top - scroll;
-            int panelH = headerH + group.ids().size() * rowH + 5;
+        // Slight background dim only; the world remains visible behind the panels.
+        ctx.fill(0, 0, width, height, 0x26000000);
 
+        for (int i = 0; i < GROUPS.size(); i++) {
+            Group group = GROUPS.get(i);
+            int col = i % columns;
+            int row = i / columns;
+            int x = startX + col * (panelW + GAP);
+            int y = TOP + row * (contentHeight + GAP) - scroll;
+            int rowCount = group.ids().size() + (group.title().equals("CLIENT") ? 1 : 0);
+            int panelH = HEADER_H + rowCount * ROW_H + 4;
+
+            if (y + panelH < TOP || y > bottom) continue;
             ctx.fill(x, y, x + panelW, y + panelH, PANEL);
-            ctx.fill(x, y, x + panelW, y + headerH, HEADER);
-            ctx.fill(x, y, x + 3, y + headerH, ACCENT);
-            ctx.drawText(textRenderer, group.title(), x + 10, y + 9, ACCENT, false);
-            int enabledCount = 0;
+            ctx.fill(x, y, x + panelW, y + HEADER_H, HEADER);
+            ctx.fill(x, y, x + 2, y + HEADER_H, group.tint());
+            ctx.fill(x, y, x + panelW, y + 1, BORDER);
+            ctx.drawText(textRenderer, group.icon(), x + 7, y + 7, group.tint(), false);
+            ctx.drawText(textRenderer, group.title(), x + 19, y + 7, TEXT, false);
+
+            int active = 0;
             for (String id : group.ids()) {
-                Module module = Modules.byId(id);
-                if (module != null && module.isEnabled()) enabledCount++;
+                Module m = Modules.byId(id);
+                if (m != null && m.isEnabled()) active++;
             }
-            String count = enabledCount + "/" + group.ids().size();
-            ctx.drawText(textRenderer, count, x + panelW - textRenderer.getWidth(count) - 9,
-                y + 9, MUTED, false);
+            String count = active + "/" + group.ids().size();
+            if (!group.ids().isEmpty()) {
+                ctx.drawText(textRenderer, count,
+                    x + panelW - textRenderer.getWidth(count) - 7, y + 7, MUTED, false);
+            }
 
-            for (int i = 0; i < group.ids().size(); i++) {
-                String id = group.ids().get(i);
-                Module module = Modules.byId(id);
-                if (module == null) continue;
-                int ry = y + headerH + i * rowH;
-                if (ry + rowH < 0 || ry > height - 30) continue;
-                boolean on = module.isEnabled();
-                boolean hovered = mouseX >= x + 3 && mouseX < x + panelW - 3
-                    && mouseY >= ry && mouseY < ry + rowH;
-                if (hovered) ctx.fill(x + 3, ry, x + panelW - 3, ry + rowH, 0x55434D60);
-                String label = module.name.toUpperCase();
-                ctx.drawText(textRenderer, label, x + 9, ry + 8, on ? TEXT : MUTED, false);
+            for (int n = 0; n < rowCount; n++) {
+                int ry = y + HEADER_H + n * ROW_H;
+                if (ry + ROW_H < TOP || ry > bottom) continue;
+                String label;
+                boolean enabled = false;
+                Runnable action;
 
-                int sx = x + panelW - 31, sy = ry + 6;
-                ctx.fill(sx, sy, sx + 22, sy + 11, on ? ENABLED : DISABLED);
-                int knob = on ? sx + 13 : sx + 2;
-                ctx.fill(knob, sy + 2, knob + 7, sy + 9, 0xFFF4F6FA);
+                if (group.title().equals("CLIENT")) {
+                    label = "GUI STYLE";
+                    enabled = true;
+                    action = () -> {
+                        Config.get().guiStyle = 0;
+                        Config.save();
+                        if (client != null) client.setScreen(new ConfigScreen());
+                    };
+                } else {
+                    String id = group.ids().get(n);
+                    Module module = Modules.byId(id);
+                    if (module == null) continue;
+                    label = module.name.toUpperCase();
+                    enabled = module.isEnabled();
+                    Module target = module;
+                    action = () -> {
+                        target.toggle();
+                        Config.save();
+                    };
+                }
 
-                hits.add(new Hit(x + 3, ry, panelW - 6, rowH, () -> module.toggle()));
+                boolean hover = mouseX >= x + 2 && mouseX < x + panelW - 2
+                    && mouseY >= ry && mouseY < ry + ROW_H;
+                if (hover) ctx.fill(x + 2, ry, x + panelW - 2, ry + ROW_H, 0x443F4B5D);
+                ctx.drawText(textRenderer, fit(label, panelW - 45), x + 7, ry + 6,
+                    enabled ? TEXT : MUTED, false);
+
+                int sx = x + panelW - 25;
+                int sy = ry + 4;
+                ctx.fill(sx, sy, sx + 17, sy + 10, enabled ? ON : OFF);
+                int knobX = enabled ? sx + 9 : sx + 1;
+                ctx.fill(knobX, sy + 1, knobX + 7, sy + 9, 0xFFF4F6F8);
+                hits.add(new Hit(x + 2, ry, panelW - 4, ROW_H, action));
             }
         }
 
-        String footer = "XMCORE ARRAY  •  CLICK HERE TO RETURN TO XMCORE GUI";
-        int fx = (width - textRenderer.getWidth(footer)) / 2;
-        int fy = height - 18;
-        ctx.drawText(textRenderer, footer, fx, fy, MUTED, false);
-        hits.add(new Hit(fx - 8, fy - 5, textRenderer.getWidth(footer) + 16, 18, () -> {
-            Config.get().guiStyle = 0;
-            Config.save();
-            if (client != null) client.setScreen(new ConfigScreen());
-        }));
+        String footer = "XMCORE  /  RIGHT SHIFT TO CLOSE";
+        ctx.drawText(textRenderer, footer, 8, height - 12, 0xAAE3E8F0, false);
+        String style = "CLASSIC ARRAY";
+        ctx.drawText(textRenderer, style, width - textRenderer.getWidth(style) - 8,
+            height - 12, ACCENT, false);
     }
 
     @Override
@@ -118,12 +187,16 @@ public final class ArrayGuiScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        int rows = 0;
-        for (Group group : GROUPS) rows = Math.max(rows, group.ids().size());
-        int contentHeight = 27 + rows * 23 + 5;
-        int maxScroll = Math.max(0, contentHeight - height + 55);
-        scroll = Math.max(0, Math.min(maxScroll, scroll - (int) Math.round(verticalAmount * 28)));
+    public boolean mouseScrolled(double mouseX, double mouseY,
+                                 double horizontalAmount, double verticalAmount) {
+        int columns = columnsForWidth();
+        int rows = (GROUPS.size() + columns - 1) / columns;
+        int maxRows = 0;
+        for (Group group : GROUPS) maxRows = Math.max(maxRows, group.ids().size());
+        int contentHeight = HEADER_H + maxRows * ROW_H + 8;
+        int maxScroll = Math.max(0, rows * (contentHeight + GAP) - (height - TOP - 22));
+        scroll = Math.max(0, Math.min(maxScroll,
+            scroll - (int) Math.round(verticalAmount * 24)));
         return true;
     }
 }
