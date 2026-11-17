@@ -26,7 +26,6 @@ public final class SantaHatFeature extends FeatureRenderer<PlayerEntityRenderSta
     private static final int CHRISTMAS_THEME_ID = 6;
     private static final Identifier WHITE_TEXTURE =
             Identifier.ofVanilla("textures/block/white_concrete.png");
-    private static final RenderLayer HAT_LAYER = RenderLayer.getEntityCutoutNoCull(WHITE_TEXTURE);
 
     private final ModelPart brim;
     private final ModelPart lower;
@@ -72,19 +71,20 @@ public final class SantaHatFeature extends FeatureRenderer<PlayerEntityRenderSta
         float tilt = (float) Math.sin(time * 1.7) * 2.0f;
 
         matrices.push();
-        getContextModel().getHead().rotate(matrices);
+        getContextModel().getHead().applyTransform(matrices);
+        RenderLayer hatLayer = getContextModel().getLayer(WHITE_TEXTURE);
         matrices.translate(0.0, bob, 0.0);
         matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(tilt));
 
-        queue.submitModelPart(brim, matrices, HAT_LAYER, light, OverlayTexture.DEFAULT_UV,
+        queue.submitModelPart(brim, matrices, hatLayer, light, OverlayTexture.DEFAULT_UV,
                 null, 0xFFFFFFFF, null);
-        queue.submitModelPart(lower, matrices, HAT_LAYER, light, OverlayTexture.DEFAULT_UV,
+        queue.submitModelPart(lower, matrices, hatLayer, light, OverlayTexture.DEFAULT_UV,
                 null, 0xFFE32636, null);
-        queue.submitModelPart(middle, matrices, HAT_LAYER, light, OverlayTexture.DEFAULT_UV,
+        queue.submitModelPart(middle, matrices, hatLayer, light, OverlayTexture.DEFAULT_UV,
                 null, 0xFFE32636, null);
-        queue.submitModelPart(tip, matrices, HAT_LAYER, light, OverlayTexture.DEFAULT_UV,
+        queue.submitModelPart(tip, matrices, hatLayer, light, OverlayTexture.DEFAULT_UV,
                 null, 0xFFE32636, null);
-        queue.submitModelPart(pompom, matrices, HAT_LAYER, light, OverlayTexture.DEFAULT_UV,
+        queue.submitModelPart(pompom, matrices, hatLayer, light, OverlayTexture.DEFAULT_UV,
                 null, 0xFFFFFFFF, null);
         matrices.pop();
     }
