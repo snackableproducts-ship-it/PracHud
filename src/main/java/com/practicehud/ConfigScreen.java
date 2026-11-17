@@ -64,6 +64,9 @@ public class ConfigScreen extends Screen {
 
     // ---- Per-instance state ----
     private boolean searchFocused;
+    private boolean halloweenPasswordPrompt;
+    private String halloweenPassword = "";
+    private boolean halloweenPasswordError;
     private boolean draggingScroll;
     private final long[] profileFlash = new long[3];
     private final Map<String, Integer> counts = new HashMap<>();
@@ -383,6 +386,10 @@ public class ConfigScreen extends Screen {
         drawSidebar(ctx);
         drawMain(ctx, open);
 
+        // Christmas cosmetic: a gently bobbing Santa hat beside the XMCore brand.
+        if (Config.get().themeId == 6) drawSantaHat(ctx, px + 32, py + 5, 1.35f);
+        if (halloweenPasswordPrompt) drawHalloweenPasswordPrompt(ctx);
+
         // Close button.
         clipT = 0;
         clipB = height;
@@ -392,6 +399,55 @@ public class ConfigScreen extends Screen {
         if (ch > 0.03f) rrect(ctx, bx, by, 16, 16, 4, mix(cMain, 0xFFE5484D, 0.75f * ch));
         icon(ctx, ICON_CLOSE, bx + 4, by + 4, mix(cMuted, 0xFFFFFFFF, ch));
         addHit(bx, by, 16, 16, this::close);
+    }
+
+    private void drawSantaHat(DrawContext ctx, int x, int y, float scale) {
+        int bob = Math.round((float)Math.sin(System.nanoTime() / 260_000_000.0) * 1.5f);
+        int red = 0xFFE53945, white = 0xFFF7F4EF;
+        int u = Math.max(1, Math.round(scale));
+        rrect(ctx, x + 2*u, y + 7*u + bob, 13*u, 4*u, 2*u, white);
+        rrect(ctx, x + 5*u, y + 4*u + bob, 8*u, 4*u, 2*u, red);
+        rrect(ctx, x + 8*u, y + 1*u + bob, 6*u, 4*u, 2*u, red);
+        rrect(ctx, x + 12*u, y - 1*u + bob, 4*u, 4*u, 2*u, red);
+        rrect(ctx, x + 14*u, y - 2*u + bob, 4*u, 4*u, 2*u, white);
+    }
+
+    private void drawHalloweenPasswordPrompt(DrawContext ctx) {
+        fillRect(ctx, 0, 0, width, height, 0x99000000);
+        int w = Math.min(310, width - 32), h = 126;
+        int x = (width - w) / 2, y = (height - h) / 2;
+        rrectBorder(ctx, x, y, w, h, 8, cCard, cAccent);
+        textCentered(ctx, "HALLOWEEN THEME LOCKED", width / 2, y + 15, cText, true);
+        textCentered(ctx, "Enter the access password", width / 2, y + 36, cMuted, false);
+        rrectBorder(ctx, x + 18, y + 57, w - 36, 25, 5, cMain, halloweenPasswordError ? 0xFFFF5555 : cBorder);
+        String shown = "•".repeat(halloweenPassword.length());
+        text(ctx, shown.isEmpty() ? "Type password..." : shown, x + 27, y + 66,
+                halloweenPasswordError ? 0xFFFF6666 : cText, false);
+        textCentered(ctx, halloweenPasswordError ? "Incorrect password" : "ENTER to unlock  •  ESC to cancel",
+                width / 2, y + 96, halloweenPasswordError ? 0xFFFF6666 : cMuted, false);
+    }
+
+    private void selectTheme(int index) {
+        if (index == 5) {
+            halloweenPasswordPrompt = true;
+            halloweenPassword = "";
+            halloweenPasswordError = false;
+            searchFocused = false;
+            return;
+        }
+        Config.get().themeId = index;
+        Config.save();
+    }
+
+    private void submitHalloweenPassword() {
+        if ("h123h".equals(halloweenPassword)) {
+            Config.get().themeId = 5;
+            Config.save();
+            halloweenPasswordPrompt = false;
+        } else {
+            halloweenPassword = "";
+            halloweenPasswordError = true;
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -873,7 +929,7 @@ public class ConfigScreen extends Screen {
             text(ctx, label, x0 + cardW - 12 - lw, y0 + 72, lc, false);
             if (active) icon(ctx, ICON_CHECK, x0 + cardW - 12 - lw - 11, y0 + 73, cAccent);
 
-            addHit(x0, y0, cardW, cardH, () -> { Config.get().themeId = index; Config.save(); });
+            addHit(x0, y0, cardW, cardH, () -> selectTheme(index));
         }
         int rows = (THEME_NAMES.length + cols - 1) / cols;
         cy += rows * (cardH + gap);
@@ -994,6 +1050,11 @@ public class ConfigScreen extends Screen {
     @Override
     public boolean charTyped(CharInput input) {
         int codePoint = input.codepoint();
+        if (halloweenPasswordPrompt && !Character.isISOControl(codePoint) && halloweenPassword.length() < 24) {
+            halloweenPassword += new String(Character.toChars(codePoint));
+            halloweenPasswordError = false;
+            return true;
+        }
         if (searchFocused && isCategory() && selectedModuleId == null && !Character.isISOControl(codePoint)) {
             if (searchText.length() < 40) searchText += new String(Character.toChars(codePoint));
             scroll = scrollTarget = 0f;
@@ -1004,6 +1065,24 @@ public class ConfigScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyInput input) {
+        if (halloweenPasswordPrompt) {
+            int key = input.key();
+            if (key == GLFW.GLFW_KEY_ESCAPE) {
+                halloweenPasswordPrompt = false;
+                halloweenPassword = "";
+                return true;
+            }
+            if (key == GLFW.GLFW_KEY_BACKSPACE) {
+                if (!halloweenPassword.isEmpty()) halloweenPassword = halloweenPassword.substring(0, halloweenPassword.length() - 1);
+                halloweenPasswordError = false;
+                return true;
+            }
+            if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
+                submitHalloweenPassword();
+                return true;
+            }
+            return true;
+        }
         if (input.key() == GLFW.GLFW_KEY_RIGHT_SHIFT) {
             Config.get().guiStyle = 1;
             Config.save();
