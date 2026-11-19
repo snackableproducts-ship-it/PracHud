@@ -177,6 +177,8 @@ public final class Modules {
                 Combat::renderTrajectory);
         addRestricted("middle_click", "Middle-Click Utilities", CAT_UTIL,
                 "Middle-click throws a pearl, sneak + middle-click uses an XP bottle, middle-click while gliding uses a firework. Held off by Safe Mode.", null);
+        addRestricted("fast_xp", "Fast XP", CAT_UTIL,
+                "Throws XP bottles at full speed: holding right-click no longer waits between throws. Held off by Safe Mode.", null);
         add("regear_helper", "Hotbar Re-gear Helper", CAT_UTIL,
                 "Outlines hotbar slots that no longer match your saved layout (save it in Settings).", Combat::renderRegear);
 
