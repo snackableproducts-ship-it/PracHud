@@ -11,11 +11,13 @@ import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.particle.ParticleTypes;
+import net.minecraft.registry.Registries;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.hit.BlockHitResult;
@@ -61,6 +63,11 @@ public final class Modules {
         ALL.add(new Module(id, name, cat, desc, r));
     }
 
+    /** Registers a module that Competitive Safe Mode holds off. */
+    private static void addRestricted(String id, String name, String cat, String desc, Module.Renderer r) {
+        ALL.add(new Module(id, name, cat, desc, r, true));
+    }
+
     public static Module byId(String id) {
         for (Module m : ALL) if (m.id.equals(id)) return m;
         return null;
@@ -90,7 +97,15 @@ public final class Modules {
         add("pearl_assist", "Pearl Assist", CAT_CRYSTAL,
                 "Shows ender-pearl count and predicted landing point.", Modules::pearlAssist);
 
+        add("blast_calc", "Blast Damage Calculator", CAT_CRYSTAL,
+                "Live damage you would take from nearby end crystals and charged respawn anchors (armour and difficulty included, enchantments not). Marks each one on screen: red = lethal, yellow = heavy, green = safe.",
+                Combat::renderBlast);
+
         // ---- Combat ----
+        add("totem_pops", "Totem Pop Tracker", CAT_COMBAT,
+                "Counts totems popped by nearby players, with a chat alert for each pop.", Combat::renderPops);
+        add("combat_timer", "Combat Tag Timer", CAT_COMBAT,
+                "15-second countdown after you hit or are hit by a player.", Combat::renderTag);
         add("reticle", "Custom Crosshair", CAT_VISUAL,
                 "Replaces the crosshair (shape/size/colour in settings). Changes colour over a target in reach.", null);
         add("target_ring", "Target Tracking Ring", CAT_COMBAT,
@@ -157,8 +172,24 @@ public final class Modules {
                 "Distance to the block or entity you are targeting.", Modules::reachReadout);
         add("spear_assist", "Spear Assist", CAT_UTIL,
                 "Displays held spear name and durability.", Modules::heldItemHud);
+        add("trajectory", "Projectile & Pearl Predictor", CAT_UTIL,
+                "Draws the landing path of your pearls, potions and arrows, and marks enemy pearls in flight with distance and time.",
+                Combat::renderTrajectory);
+        addRestricted("middle_click", "Middle-Click Utilities", CAT_UTIL,
+                "Middle-click throws a pearl, sneak + middle-click uses an XP bottle, middle-click while gliding uses a firework. Held off by Safe Mode.", null);
+        add("regear_helper", "Hotbar Re-gear Helper", CAT_UTIL,
+                "Outlines hotbar slots that no longer match your saved layout (save it in Settings).", Combat::renderRegear);
 
         // ---- Visuals ----
+        add("low_fire", "Low Fire", CAT_VISUAL,
+                "Lowers the first-person fire overlay, and hides it while you have Fire Resistance.", null);
+        add("toggle_sprint", "Toggle Sprint", CAT_VISUAL,
+                "Sprint stays on until you stop moving, using the game's own toggle option.", Combat::renderToggleStatus);
+        add("toggle_sneak", "Toggle Sneak", CAT_VISUAL,
+                "Sneak stays on until you press it again, using the game's own toggle option.", Combat::renderToggleStatus);
+        addRestricted("hitbox_lasers", "Hitboxes & Eye Lasers", CAT_VISUAL,
+                "Thin hitbox outlines on players (green inside 3 blocks) and a red line along where each opponent is looking. Held off by Safe Mode.",
+                Combat::renderHitboxes);
         add("no_fire_overlay", "No Fire Overlay", CAT_VISUAL,
                 "Hides the first-person fire overlay for a clearer, less obstructed view.", null);
         add("no_nausea_overlay", "No Nausea Overlay", CAT_VISUAL,
@@ -226,12 +257,20 @@ public final class Modules {
         ClientPlayerEntity p = mc.player;
         if (p == null || mc.world == null || mc.options.hudHidden) return;
         Hud.begin();
+        Combat.sampleInput(mc);
         for (Module m : ALL) {
             if (m.isEnabled()) m.render(ctx, mc, p);
+        }
+        if (Safe.active()) {
+            Hud.panel(ctx, "Safe Mode", Hud.GREEN,
+                    Row.of(Safe.fromServer() ? "Server: competitive" : "Switched on", Hud.GREEN),
+                    Row.of("Restricted modules off", Hud.GRAY));
         }
     }
 
     public static void tick(MinecraftClient mc) {
+        Safe.update(mc);
+        Combat.tick(mc);
         if (mc.world == null || mc.player == null) {
             LAST_CART_POS.clear();
             CART_VEL.clear();
@@ -399,38 +438,95 @@ public final class Modules {
                 Row.of(String.format("Z: %.1f", p.getZ()), Hud.WHITE));
     }
 
+    /** Red -> yellow -> green blend for a 0..1 fraction. */
+    private static int gradient(float f) {
+        f = Math.max(0f, Math.min(1f, f));
+        return f < 0.5f ? blend(Hud.RED, Hud.YELLOW, f * 2f) : blend(Hud.YELLOW, Hud.GREEN, (f - 0.5f) * 2f);
+    }
+
+    private static int blend(int a, int b, float t) {
+        int out = 0xFF000000;
+        for (int s = 0; s <= 16; s += 8) {
+            int ca = (a >> s) & 255, cb = (b >> s) & 255;
+            out |= (Math.round(ca + (cb - ca) * t) & 255) << s;
+        }
+        return out;
+    }
+
     private static void armorStatusHud(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
         EquipmentSlot[] slots = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
         String[] names = {"Helmet", "Chest", "Leggings", "Boots"};
+        boolean pulse = (System.currentTimeMillis() / 300L) % 2L == 0L;
         List<Row> rows = new ArrayList<>();
+        long missing = 0;
         for (int i = 0; i < slots.length; i++) {
             ItemStack stack = p.getEquippedStack(slots[i]);
-            if (stack.isEmpty()) rows.add(Row.of(names[i] + ": empty", Hud.GRAY));
-            else {
-                float f = durabilityFrac(stack);
-                rows.add(Row.bar(names[i] + ": " + Math.round(f * 100) + "%", f, fracColor(f)));
+            if (stack.isEmpty()) {
+                rows.add(Row.of(names[i] + ": empty", Hud.GRAY));
+            } else if (stack.getMaxDamage() <= 0) {
+                rows.add(Row.of(names[i] + ": unbreakable", Hud.GRAY));
+            } else {
+                int max = stack.getMaxDamage();
+                int left = max - stack.getDamage();
+                float f = left / (float) max;
+                missing += stack.getDamage();
+                // Pulses between red and white below 15% durability.
+                int color = f < 0.15f ? (pulse ? Hud.RED : Hud.WHITE) : gradient(f);
+                rows.add(Row.bar(names[i] + ": " + Math.round(f * 100) + "% (" + left + "/" + max + ")", f, color));
             }
+        }
+        if (missing > 0) {
+            // Mending repairs 2 durability per XP point; an XP bottle gives 3-11 (about 7).
+            long bottles = (long) Math.ceil(Math.ceil(missing / 2.0) / 7.0);
+            rows.add(Row.of("Mend set: ~" + bottles + " XP bottles", Hud.GRAY));
         }
         Hud.panel(ctx, "Armor Status", Hud.AQUA, rows.toArray(new Row[0]));
     }
 
     private static void potionStatusHud(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
+        // Shortest time left first; infinite and beacon/conduit (ambient) effects are hidden as clutter.
+        List<StatusEffectInstance> effects = new ArrayList<>();
+        for (StatusEffectInstance effect : p.getStatusEffects()) {
+            if (effect.isInfinite() || effect.isAmbient()) continue;
+            effects.add(effect);
+        }
+        effects.sort(Comparator.comparingInt(StatusEffectInstance::getDuration));
+        boolean blink = (System.currentTimeMillis() / 250L) % 2L == 0L;
         List<Row> rows = new ArrayList<>();
-        for (StatusEffectInstance effect : p.getStatusEffects())
-            rows.add(Row.of(effectName(effect) + " " + Hud.time(effect.getDuration()), Hud.WHITE));
-        if (rows.isEmpty()) rows.add(Row.of("No active effects", Hud.GRAY));
+        for (StatusEffectInstance effect : effects) {
+            int ticks = effect.getDuration();
+            int color = ticks < 200 ? (blink ? Hud.RED : Hud.WHITE) : ticks < 600 ? Hud.YELLOW : Hud.WHITE;
+            rows.add(Row.of(effectName(effect) + ": " + Hud.time(ticks), color));
+        }
+        if (rows.isEmpty()) rows.add(Row.of("No timed effects", Hud.GRAY));
         Hud.panel(ctx, "Potion Effects", Hud.AQUA, rows.toArray(new Row[0]));
     }
 
     private static void keystrokesHud(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
-        Hud.panel(ctx, "Keystrokes", Hud.AQUA,
-                Row.of((mc.options.forwardKey.isPressed() ? "[W]" : " W ") + " " +
-                        (mc.options.leftKey.isPressed() ? "[A]" : " A ") + " " +
-                        (mc.options.backKey.isPressed() ? "[S]" : " S ") + " " +
-                        (mc.options.rightKey.isPressed() ? "[D]" : " D "), Hud.WHITE),
-                Row.of("Jump " + (mc.options.jumpKey.isPressed() ? "ON" : "OFF") +
-                        "  Sneak " + (mc.options.sneakKey.isPressed() ? "ON" : "OFF") +
-                        "  Sprint " + (mc.options.sprintKey.isPressed() ? "ON" : "OFF"), Hud.WHITE));
+        List<Row> rows = new ArrayList<>();
+        rows.add(Row.of((mc.options.forwardKey.isPressed() ? "[W]" : " W ") + " " +
+                (mc.options.leftKey.isPressed() ? "[A]" : " A ") + " " +
+                (mc.options.backKey.isPressed() ? "[S]" : " S ") + " " +
+                (mc.options.rightKey.isPressed() ? "[D]" : " D "), Hud.WHITE));
+        rows.add(Row.of("Jump " + (mc.options.jumpKey.isPressed() ? "ON" : "OFF") +
+                "  Sneak " + (mc.options.sneakKey.isPressed() ? "ON" : "OFF") +
+                "  Sprint " + (p.isSprinting() ? "ON" : "OFF"), Hud.WHITE));
+        rows.add(Row.of("CPS: " + Combat.lmbCps() + " | " + Combat.rmbCps() + "   Peak: " + Combat.peakCps(),
+                Combat.lmbCps() >= 10 ? Hud.GREEN : Hud.WHITE));
+        long gap = Combat.recentTapGapMs();
+        if (gap >= 0) {
+            // Bar fills for tight taps; green under ~150 ms.
+            rows.add(Row.bar(Combat.tapKey() + "-tap: " + gap + " ms", 1f - Math.min(1f, gap / 250f), gap <= 150 ? Hud.GREEN : Hud.YELLOW));
+        } else {
+            rows.add(Row.of("W/S-tap: --", Hud.GRAY));
+        }
+        int ping = Combat.ping(mc);
+        double tps = Combat.tps();
+        rows.add(Row.of("Ping: " + (ping < 0 ? "--" : ping + " ms"),
+                ping < 0 ? Hud.GRAY : ping < 60 ? Hud.GREEN : ping < 150 ? Hud.YELLOW : Hud.RED));
+        rows.add(Row.of("TPS: " + (tps < 0 ? "--" : String.format("%.1f", tps)),
+                tps < 0 ? Hud.GRAY : tps >= 19.0 ? Hud.GREEN : tps >= 15.0 ? Hud.YELLOW : Hud.RED));
+        Hud.panel(ctx, "Keystrokes", Hud.AQUA, rows.toArray(new Row[0]));
     }
 
     private static void heldItemHud(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
@@ -499,6 +595,7 @@ public final class Modules {
         int thickness = Math.max(1, c.crosshairThickness);
         if (c.crosshairOutline) drawCrosshairShape(ctx, cx, cy, size, gap, thickness + 2, c.crosshairOutlineColor);
         drawCrosshairShape(ctx, cx, cy, size, gap, thickness, color);
+        Combat.crosshairExtras(ctx, mc, cx, cy, size + gap + 5);
     }
 
     private static void drawCrosshairShape(DrawContext ctx, int cx, int cy, int size, int gap, int thickness, int color) {
@@ -614,24 +711,62 @@ public final class Modules {
         Hud.panel(ctx, "Combat", Hud.RED, rows.toArray(new Row[0]));
     }
 
+    private static LivingEntity stickyTarget;
+    private static long stickyUntil;
+
+    /** One-letter armour material code for a worn piece, e.g. N for netherite. */
+    private static String armorLetter(ItemStack stack) {
+        if (stack.isEmpty()) return "-";
+        String id = Registries.ITEM.getId(stack.getItem()).getPath();
+        if (id.startsWith("netherite")) return "N";
+        if (id.startsWith("diamond")) return "D";
+        if (id.startsWith("iron")) return "I";
+        if (id.startsWith("chainmail")) return "C";
+        if (id.startsWith("golden")) return "G";
+        if (id.startsWith("leather")) return "L";
+        if (id.startsWith("turtle")) return "T";
+        return id.contains("elytra") ? "E" : "?";
+    }
+
     private static void entityInfo(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity p) {
         LivingEntity t = lookedAt(mc, 128);
+        long now = System.currentTimeMillis();
+        if (t != null) {
+            stickyTarget = t;
+            stickyUntil = now + 2500L;
+        } else if (stickyTarget != null && now < stickyUntil && stickyTarget.isAlive()
+                && stickyTarget.squaredDistanceTo(p) < 128.0 * 128.0) {
+            t = stickyTarget;
+        }
         if (t == null) return;
-        int cx = ctx.getScaledWindowWidth() / 2;
-        int y = ctx.getScaledWindowHeight() / 2 + 18;
-        Hud.centered(ctx, t.getDisplayName().getString(), cx, y, Hud.WHITE);
-        float f = Math.max(0f, Math.min(1f, t.getHealth() / t.getMaxHealth()));
-        int bw = 60;
-        ctx.fill(cx - bw / 2, y + 11, cx + bw / 2, y + 14, 0xA0000000);
-        ctx.fill(cx - bw / 2, y + 11, cx - bw / 2 + Math.round(bw * f), y + 14, fracColor(f));
-        Hud.centered(ctx, String.format("%.1f / %.1f", t.getHealth(), t.getMaxHealth()), cx, y + 16, Hud.GRAY);
-        int ey = y + 27;
+
+        float hp = t.getHealth(), max = Math.max(1f, t.getMaxHealth()), abs = t.getAbsorptionAmount();
+        List<Row> rows = new ArrayList<>();
+        rows.add(Row.of("Name: " + t.getDisplayName().getString(), Hud.WHITE));
+        rows.add(Row.bar(String.format("Health: %.1f / %.1f", hp, max), hp / max, fracColor(hp / max)));
+        if (abs > 0f) rows.add(Row.of(String.format("Absorption: +%.1f", abs), Hud.GOLD));
+
+        EquipmentSlot[] slots = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
+        StringBuilder worn = new StringBuilder();
+        for (EquipmentSlot slot : slots) worn.append(armorLetter(t.getEquippedStack(slot))).append(' ');
+        rows.add(Row.of("Armor: " + t.getArmor() + "  " + worn.toString().trim(), t.getArmor() >= 15 ? Hud.AQUA : Hud.WHITE));
+
+        if (t instanceof PlayerEntity other) {
+            int pops = Combat.pops(other.getUuid());
+            rows.add(Row.of("Totem pops: " + pops, pops > 0 ? Hud.GOLD : Hud.GRAY));
+        }
+
+        // Lethal-damage indicator: would your next hit (armour included, enchantments not) finish them?
+        float hit = Combat.estimateHit(p, t);
+        if (hit >= hp + abs) rows.add(Row.of("LETHAL on next hit", Hud.RED));
+        else rows.add(Row.of(String.format("Next hit: ~%.1f", hit), Hud.GRAY));
+
         int shown = 0;
         for (StatusEffectInstance e : t.getStatusEffects()) {
-            if (shown++ >= 4) break;
-            Hud.centered(ctx, effectName(e) + " " + Hud.time(e.getDuration()), cx, ey, Hud.AQUA);
-            ey += 10;
+            if (shown++ >= 3) break;
+            rows.add(Row.of(effectName(e) + ": " + Hud.time(e.getDuration()), Hud.AQUA));
         }
+        Hud.panel(ctx, "Target", Hud.RED, rows.toArray(new Row[0]));
     }
 
     // =====================================================================

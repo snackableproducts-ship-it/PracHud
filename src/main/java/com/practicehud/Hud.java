@@ -5,7 +5,9 @@ import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Shared renderer for compact, modern HUD cards.
@@ -54,6 +56,8 @@ public final class Hud {
     private static int colW = 0;
     /** Widest size seen per panel, so values changing length never make a panel flicker. */
     private static final Map<String, Integer> WIDTHS = new HashMap<>();
+    /** Panels already drawn this frame (several modules can share one panel; draw it once). */
+    private static final Set<String> DRAWN = new HashSet<>();
 
     private Hud() {}
 
@@ -62,6 +66,20 @@ public final class Hud {
         cursorX = c.hudX;
         cursorY = c.hudY;
         colW = 0;
+        DRAWN.clear();
+    }
+
+    /** Per-widget scale from the HUD editor times the global HUD scale. */
+    public static float scaleFor(String title) {
+        Config c = Config.get();
+        float s = c.hudScales.getOrDefault(title, 1f);
+        return Math.max(0.5f, Math.min(2.5f, s * (float) c.hudScale));
+    }
+
+    /** Per-widget accent colour from the HUD editor, falling back to the module's own accent. */
+    public static int accentFor(String title, int fallback) {
+        Integer custom = Config.get().hudColors.get(title);
+        return custom == null ? fallback : (custom | 0xFF000000);
     }
 
     // =====================================================================
@@ -69,6 +87,8 @@ public final class Hud {
     // =====================================================================
 
     public static void panel(DrawContext ctx, String title, int accent, Row... rows) {
+        if (!DRAWN.add(title)) return;
+        accent = accentFor(title, accent);
         TextRenderer tr = MinecraftClient.getInstance().textRenderer;
         int screenW = ctx.getScaledWindowWidth();
         int limit = Math.min(MAX_W, Math.max(MIN_W, screenW - 16));
@@ -82,8 +102,18 @@ public final class Hud {
         w = Math.min(limit, Math.max(w, WIDTHS.getOrDefault(title, 0)));
         WIDTHS.put(title, w);
 
-        int[] pos = place(ctx, title, w, h);
+        float scale = scaleFor(title);
+        boolean scaled = Math.abs(scale - 1f) > 0.01f;
+        int[] pos = place(ctx, title, Math.round(w * scale), Math.round(h * scale));
         int x = pos[0], y = pos[1];
+        if (scaled) {
+            var m = ctx.getMatrices();
+            m.pushMatrix();
+            m.translate((float) x, (float) y);
+            m.scale(scale, scale);
+            x = 0;
+            y = 0;
+        }
         surface(ctx, x, y, w, h, accent);
         header(ctx, tr, title, x, y, w, accent);
 
@@ -108,16 +138,29 @@ public final class Hud {
                 ry += ROW_H;
             }
         }
+        if (scaled) ctx.getMatrices().popMatrix();
     }
 
     /** A small bar graph card (e.g. FPS history). {@code values} are drawn oldest to newest. */
     public static void graph(DrawContext ctx, String title, int accent, int[] values, String valueText, int valueColor) {
+        if (!DRAWN.add(title)) return;
+        accent = accentFor(title, accent);
         TextRenderer tr = MinecraftClient.getInstance().textRenderer;
         int graphH = 24;
         int w = Math.max(MIN_W, values.length * 3 + PAD * 2 - 1);
         int h = TITLE_H + graphH + BOTTOM;
-        int[] pos = place(ctx, title, w, h);
+        float scale = scaleFor(title);
+        boolean scaled = Math.abs(scale - 1f) > 0.01f;
+        int[] pos = place(ctx, title, Math.round(w * scale), Math.round(h * scale));
         int x = pos[0], y = pos[1];
+        if (scaled) {
+            var m = ctx.getMatrices();
+            m.pushMatrix();
+            m.translate((float) x, (float) y);
+            m.scale(scale, scale);
+            x = 0;
+            y = 0;
+        }
         surface(ctx, x, y, w, h, accent);
         header(ctx, tr, title, x, y, w, accent);
         if (valueText != null && !valueText.isEmpty()) {
@@ -134,6 +177,7 @@ public final class Hud {
             boolean latest = i == values.length - 1;
             ctx.fill(bx, base - bh, bx + 2, base, latest ? WHITE : (accent & 0x00FFFFFF) | 0xCC000000);
         }
+        if (scaled) ctx.getMatrices().popMatrix();
     }
 
     public static void centered(DrawContext ctx, String text, int cx, int y, int color) {

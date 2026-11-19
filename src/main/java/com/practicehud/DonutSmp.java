@@ -5,7 +5,9 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.text.Text;
 
+import java.util.ArrayDeque;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -16,8 +18,9 @@ import java.util.regex.Pattern;
  * Tracks only the server's virtual in-game balance; it never handles real money.
  */
 public final class DonutSmp {
+    // "balance: 1,234" / "current balance is $1.5m" / "you have $2m" (a bare "you have 3 ..." is not a balance).
     private static final Pattern BALANCE = Pattern.compile(
-            "(?i)(?:balance|you have|current balance)[^0-9$]*\\$?([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)");
+            "(?i)(?:(?:current\\s+)?balance\\s*(?:is|of|:|=)?\\s*\\$?|you\\s+have\\s+\\$)\\s*([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)\\b");
     private static final Pattern[] INCOMING_PATTERNS = {
             Pattern.compile("(?i)([A-Za-z0-9_]{3,16})\\s+(?:paid|payed|sent|gave)\\s+(?:you\\s+)?\\$?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)"),
             Pattern.compile("(?i)(?:you\\s+)?received\\s+\\$?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?\\s*[kmbt]?)\\s+from\\s+([A-Za-z0-9_]{3,16})"),
@@ -32,6 +35,20 @@ public final class DonutSmp {
 
     private DonutSmp() {}
 
+    // ---- Session-only state (not persisted) ----
+    private static final long SESSION_START = System.currentTimeMillis();
+    private static double sessionEarned = 0.0;
+    private static final Deque<String> BID_LOG = new ArrayDeque<>();
+    private static String lastResult = "";
+    private static long lastResultUntil = 0L;
+    private static double shownBalance = Double.NaN;
+    private static long lastFrameNanos = 0L;
+    private static boolean dirty = false;
+    private static int flushTicks = 0;
+
+    /** Chat lines can arrive in bursts; write the config at most about once a second. */
+    private static void markDirty() { dirty = true; }
+
     public static void onChat(Text message) {
         if (message == null) return;
         String line = message.getString();
@@ -45,7 +62,7 @@ public final class DonutSmp {
                     c.donutAuctionItemWorth = value;
                     c.donutAuctionItemWorthKnown = true;
                     c.donutWorthPending = false;
-                    Config.save();
+                    markDirty();
                     notifyLocal("§d[XMCore] §fServer worth: §a$" + money(value) + " §fper item.");
                 }
                 return;
@@ -65,7 +82,7 @@ public final class DonutSmp {
                     c.donutStartingBalance = value;
                     c.donutBalanceCaptured = true;
                 }
-                Config.save();
+                markDirty();
             }
             return;
         }
@@ -75,7 +92,7 @@ public final class DonutSmp {
             double value = amount(bid.group(2));
             if (Modules.enabled("donut_auction") && c.donutAuctionActive && Double.isFinite(value) && value >= c.donutMinimumBid) {
                 recordBid(c, bid.group(1), value);
-                Config.save();
+                markDirty();
             }
             return;
         }
@@ -89,13 +106,14 @@ public final class DonutSmp {
                 double value = amount(rawAmount);
                 if (Double.isFinite(value) && value > 0) {
                     c.donutTotalEarned += value;
+                    sessionEarned += value;
                     c.donutCurrentBalance += value;
                     c.donutLastPayment = value;
                     c.donutLastPayer = player;
                     c.donutPaymentCount++;
                     c.donutPlayerEarnings.merge(player, value, Double::sum);
                     checkGoal(c);
-                    Config.save();
+                    markDirty();
                 }
                 return;
             }
@@ -106,13 +124,15 @@ public final class DonutSmp {
             double value = amount(outgoing.group(1));
             if (Double.isFinite(value) && value > 0) {
                 c.donutCurrentBalance = Math.max(0, c.donutCurrentBalance - value);
-                Config.save();
+                markDirty();
             }
         }
     }
 
     private static void recordBid(Config c, String bidder, double value) {
         c.donutBidCount++;
+        BID_LOG.addFirst(bidder + " - $" + money(value));
+        while (BID_LOG.size() > 3) BID_LOG.removeLast();
         if (value > c.donutHighestBid) {
             c.donutHighestBid = value;
             c.donutHighestBidder = bidder;
@@ -136,7 +156,7 @@ public final class DonutSmp {
         c.donutAuctionItemWorthKnown = false;
         c.donutWorthPending = true;
         c.donutWorthPendingUntil = System.currentTimeMillis() + 10_000L;
-        Config.save();
+        markDirty();
         mc.getNetworkHandler().sendChatCommand("worth " + itemId);
         notifyLocal("§d[XMCore] §fChecking server worth for §d" + c.donutAuctionItemName + "§f...");
     }
@@ -160,7 +180,9 @@ public final class DonutSmp {
         c.donutHighestBid = 0;
         c.donutHighestBidder = "";
         c.donutBidCount = 0;
-        Config.save();
+        BID_LOG.clear();
+        lastResultUntil = 0L;
+        markDirty();
         notifyLocal("§d[XMCore] §fAuction tracker started for §d" + c.donutAuctionItemName + "§f.");
     }
 
@@ -181,7 +203,9 @@ public final class DonutSmp {
         c.donutHighestBid = 0;
         c.donutHighestBidder = "";
         c.donutBidCount = 0;
-        Config.save();
+        BID_LOG.clear();
+        lastResultUntil = 0L;
+        markDirty();
         notifyLocal("§d[XMCore] §fDonutSMP auction started.");
     }
 
@@ -189,7 +213,9 @@ public final class DonutSmp {
         Config c = Config.get();
         if (!c.donutAuctionActive) return;
         c.donutAuctionActive = false;
-        Config.save();
+        markDirty();
+        lastResultUntil = System.currentTimeMillis() + 20_000L;
+        lastResult = c.donutHighestBidder.isBlank() ? "No bids" : c.donutHighestBidder + " won at $" + money(c.donutHighestBid);
         if (c.donutHighestBidder.isBlank()) {
             notifyLocal("§d[XMCore] §fAuction ended with no tracked bids.");
         } else {
@@ -200,9 +226,14 @@ public final class DonutSmp {
 
     public static void tick() {
         Config c = Config.get();
+        if (dirty && ++flushTicks >= 20) {
+            dirty = false;
+            flushTicks = 0;
+            Config.save();
+        }
         if (c.donutWorthPending && System.currentTimeMillis() > c.donutWorthPendingUntil) {
             c.donutWorthPending = false;
-            Config.save();
+            markDirty();
             notifyLocal("§d[XMCore] §fCould not read the server worth reply. Try checking again.");
         }
         if (c.donutAuctionActive && System.currentTimeMillis() >= c.donutAuctionEndAt) {
@@ -254,11 +285,29 @@ public final class DonutSmp {
         return String.format(Locale.US, "%.0f", value);
     }
 
+    private static String rate(double earned, long sinceMs) {
+        if (sinceMs < 30_000L || earned <= 0) return "calculating...";
+        return "$" + money(earned / (sinceMs / 3_600_000.0)) + "/hr";
+    }
+
+    /** Eased value so counters glide to new numbers instead of jumping. */
+    private static double glide(double target) {
+        long now = System.nanoTime();
+        double dt = lastFrameNanos == 0 ? 0.016 : Math.min(0.1, (now - lastFrameNanos) / 1e9);
+        lastFrameNanos = now;
+        if (Double.isNaN(shownBalance) || Math.abs(target - shownBalance) < 0.5) shownBalance = target;
+        else shownBalance += (target - shownBalance) * (1.0 - Math.exp(-dt * 9.0));
+        return shownBalance;
+    }
+
     public static void renderBalance(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity player) {
         Config c = Config.get();
+        double shown = glide(c.donutCurrentBalance);
+        double diff = c.donutCurrentBalance - c.donutStartingBalance;
         Hud.panel(ctx, "DonutSMP Balance", Hud.AQUA,
-                Hud.Row.of("Balance: $" + money(c.donutCurrentBalance), Hud.WHITE),
-                Hud.Row.of("Starting: $" + money(c.donutStartingBalance), Hud.GRAY));
+                Hud.Row.of("Balance: $" + money(shown), Hud.WHITE),
+                Hud.Row.of("Session: " + (diff >= 0 ? "+$" : "-$") + money(Math.abs(diff)), diff >= 0 ? Hud.GREEN : Hud.RED),
+                Hud.Row.of("Started: $" + money(c.donutStartingBalance), Hud.GRAY));
     }
 
     public static void renderEarnings(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity player) {
@@ -270,9 +319,17 @@ public final class DonutSmp {
             rows.add(Hud.Row.of("Last payment: $" + money(c.donutLastPayment), Hud.GREEN));
         if (c.donutLiveShowPayer && !c.donutLastPayer.isBlank())
             rows.add(Hud.Row.of("From: " + c.donutLastPayer, Hud.GRAY));
-        if (c.donutLiveShowPaymentCount)
+        if (c.donutLiveShowPaymentCount) {
             rows.add(Hud.Row.of("Payments: " + c.donutPaymentCount, Hud.AQUA));
-        if (rows.isEmpty()) rows.add(Hud.Row.of("Enable display fields in XMCore Settings", Hud.GRAY));
+            if (c.donutPaymentCount > 0)
+                rows.add(Hud.Row.of("Average: $" + money(c.donutTotalEarned / c.donutPaymentCount), Hud.GRAY));
+        }
+        rows.add(Hud.Row.of("Rate: " + rate(sessionEarned, System.currentTimeMillis() - SESSION_START), Hud.YELLOW));
+        if (c.donutGoalAmount > 0) {
+            float frac = (float) Math.min(1.0, c.donutTotalEarned / c.donutGoalAmount);
+            rows.add(Hud.Row.bar("Goal: " + Math.round(frac * 100) + "% of $" + money(c.donutGoalAmount),
+                    frac, frac >= 1f ? Hud.GREEN : Hud.AQUA));
+        }
         Hud.panel(ctx, "DonutSMP Live Tracker", Hud.GREEN, rows.toArray(new Hud.Row[0]));
     }
 
@@ -287,36 +344,64 @@ public final class DonutSmp {
                     Hud.Row.of("Waiting for payment messages", Hud.GRAY));
             return;
         }
+        double best = Math.max(1.0, top.get(0).getValue());
+        int[] medal = {Hud.GOLD, 0xFFD5DBE8, 0xFFE0A070, Hud.WHITE, Hud.WHITE};
         Hud.Row[] rows = new Hud.Row[top.size()];
         for (int i = 0; i < top.size(); i++) {
             Map.Entry<String, Double> entry = top.get(i);
-            rows[i] = Hud.Row.of((i + 1) + ". " + entry.getKey() + "  $" + money(entry.getValue()), Hud.WHITE);
+            rows[i] = Hud.Row.bar((i + 1) + ". " + entry.getKey() + ": $" + money(entry.getValue()),
+                    (float) (entry.getValue() / best), medal[i]);
         }
         Hud.panel(ctx, "DonutSMP Top Earners", Hud.GOLD, rows);
     }
 
     public static void renderAuction(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity player) {
         Config c = Config.get();
+        long now = System.currentTimeMillis();
         if (!c.donutAuctionActive) {
+            if (now < lastResultUntil) {
+                Hud.panel(ctx, "DonutSMP Auction", Hud.GREEN,
+                        Hud.Row.of("Auction ended", Hud.GREEN),
+                        Hud.Row.of("Item: " + c.donutAuctionItemName, Hud.WHITE),
+                        Hud.Row.of("Result: " + lastResult, Hud.GOLD),
+                        Hud.Row.of("Bids: " + c.donutBidCount, Hud.GRAY));
+                return;
+            }
             Hud.panel(ctx, "DonutSMP Auction", Hud.GOLD,
                     Hud.Row.of("No auction is currently running", Hud.GRAY),
                     Hud.Row.of("Open the auction menu to choose an item", Hud.WHITE));
             return;
         }
-        long left = Math.max(0L, c.donutAuctionEndAt - System.currentTimeMillis());
-        Hud.panel(ctx, "DonutSMP Live Auction", Hud.GOLD,
-                Hud.Row.of("Item: " + (c.donutAuctionItemName.isBlank() ? "Not selected" : c.donutAuctionItemName), Hud.WHITE),
-                Hud.Row.of("Server worth: " + (c.donutAuctionItemWorthKnown ? "$" + money(c.donutAuctionItemWorth) : "Unknown"), Hud.AQUA),
-                Hud.Row.of(String.format("Time left: %d:%02d", left / 60_000L, (left / 1000L) % 60L), Hud.YELLOW),
-                Hud.Row.of("Highest: " + (c.donutHighestBidder.isBlank() ? "No bids" : c.donutHighestBidder), Hud.WHITE),
-                Hud.Row.of("Bid: $" + money(c.donutHighestBid), Hud.GREEN),
-                Hud.Row.of("Bids: " + c.donutBidCount + "  Min: $" + money(c.donutMinimumBid), Hud.GRAY));
+        long left = Math.max(0L, c.donutAuctionEndAt - now);
+        long total = Math.max(1L, c.donutAuctionDurationSeconds * 1000L);
+        float frac = Math.min(1f, left / (float) total);
+        boolean urgent = left <= 10_000L;
+        boolean blink = urgent && (now / 350L) % 2L == 0L;
+        int timeColor = left <= 5_000L ? (blink ? Hud.RED : 0xFFFF9AAA) : urgent ? Hud.YELLOW : Hud.GREEN;
+
+        java.util.List<Hud.Row> rows = new java.util.ArrayList<>();
+        rows.add(Hud.Row.of("Item: " + (c.donutAuctionItemName.isBlank() ? "Not selected" : c.donutAuctionItemName), Hud.WHITE));
+        rows.add(Hud.Row.bar(String.format("Time left: %d:%02d", left / 60_000L, (left / 1000L) % 60L), frac, timeColor));
+        rows.add(Hud.Row.of("Highest: " + (c.donutHighestBidder.isBlank() ? "No bids" : c.donutHighestBidder), Hud.WHITE));
+        rows.add(Hud.Row.of("Bid: $" + money(c.donutHighestBid), Hud.GREEN));
+        if (c.donutAuctionItemWorthKnown && c.donutAuctionItemWorth > 0) {
+            double pct = c.donutHighestBid / c.donutAuctionItemWorth * 100.0;
+            rows.add(Hud.Row.of("Worth: $" + money(c.donutAuctionItemWorth) + " (" + Math.round(pct) + "%)",
+                    pct >= 100 ? Hud.GREEN : Hud.AQUA));
+        } else {
+            rows.add(Hud.Row.of("Worth: Unknown", Hud.GRAY));
+        }
+        rows.add(Hud.Row.of("Bids: " + c.donutBidCount + "  Min: $" + money(c.donutMinimumBid), Hud.GRAY));
+        for (String line : BID_LOG) rows.add(Hud.Row.of("  " + line, Hud.GRAY));
+        if (urgent && c.donutAntiSnipe) rows.add(Hud.Row.of("Anti-snipe: late bids extend", Hud.YELLOW));
+        Hud.panel(ctx, "DonutSMP Live Auction", Hud.GOLD, rows.toArray(new Hud.Row[0]));
     }
 
     public static void renderStreamInfo(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity player) {
+        long mins = (System.currentTimeMillis() - SESSION_START) / 60_000L;
         Hud.panel(ctx, "DonutSMP Stream Info", Config.get().accentColor,
                 Hud.Row.of("Player: " + player.getName().getString(), Hud.WHITE),
-                Hud.Row.of("Server: DonutSMP", Hud.GRAY),
-                Hud.Row.of("Virtual balance tracker", Hud.AQUA));
+                Hud.Row.of("Session: " + (mins / 60) + "h " + (mins % 60) + "m", Hud.GRAY),
+                Hud.Row.of("Earned: $" + money(sessionEarned), Hud.GREEN));
     }
 }

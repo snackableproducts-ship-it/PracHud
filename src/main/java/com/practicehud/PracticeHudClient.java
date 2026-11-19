@@ -21,6 +21,7 @@ public class PracticeHudClient implements ClientModInitializer {
 
     private static KeyBinding openGui;
     private static KeyBinding donutAuctionKey;
+    private static KeyBinding middleClickKey;
     private static final KeyBinding[] quickKeys = new KeyBinding[4];
 
     @Override
@@ -40,6 +41,8 @@ public class PracticeHudClient implements ClientModInitializer {
                 "key.xmcore.open_gui", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, category));
         donutAuctionKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.xmcore.donut_auction", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, category));
+        middleClickKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.xmcore.middle_click", InputUtil.Type.MOUSE, GLFW.GLFW_MOUSE_BUTTON_MIDDLE, category));
         String[] names = {"slot_a", "slot_b", "slot_c", "slot_d"};
         for (int i = 0; i < quickKeys.length; i++) {
             quickKeys[i] = KeyBindingHelper.registerKeyBinding(new KeyBinding(
@@ -73,6 +76,9 @@ public class PracticeHudClient implements ClientModInitializer {
                 if (client.player != null) client.setScreen(new AuctionSetupScreen());
             }
             if (client.player == null) return;
+            while (middleClickKey.wasPressed()) {
+                Combat.middleClick(client);
+            }
             for (int i = 0; i < quickKeys.length; i++) {
                 while (quickKeys[i].wasPressed()) {
                     client.player.getInventory().setSelectedSlot(Config.get().quickSlots[i]);

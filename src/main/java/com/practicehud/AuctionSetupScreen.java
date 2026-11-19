@@ -21,6 +21,9 @@ public final class AuctionSetupScreen extends Screen {
     private static final int CARD = 0xFF1B2335;
     private static final int HOVER = 0xFF29344D;
     private static final int ACCENT = 0xFFAA8BFF;
+    private static final int[] DURATIONS = {30, 60, 120, 300};
+    private static final double[] BID_STEPS = {1_000, 10_000, 100_000, 1_000_000};
+    private static final String[] BID_LABELS = {"1K", "10K", "100K", "1M"};
     private TextFieldWidget searchField;
     private TextFieldWidget worthField;
     private final List<Item> results = new ArrayList<>();
@@ -39,6 +42,32 @@ public final class AuctionSetupScreen extends Screen {
     private void button(DrawContext ctx, int mx, int my, int x, int y, int w, int h, String label) {
         ctx.fill(x, y, x + w, y + h, inside(mx, my, x, y, w, h) ? HOVER : CARD);
         ctx.drawCenteredTextWithShadow(textRenderer, label, x + w / 2, y + (h - 8) / 2, 0xFFE8ECF8);
+    }
+    private static String fmtDuration(int sec) {
+        return sec >= 60 && sec % 60 == 0 ? (sec / 60) + " min" : sec + " sec";
+    }
+    /** When the /worth reply arrives, show it in the field for the selected item. */
+    private void syncWorthField() {
+        Config c = Config.get();
+        if (c.donutAuctionItemWorthKnown && c.donutAuctionItemId.equals(selectedItemId())
+                && !worthField.isFocused()) {
+            worthField.setText(Double.toString(c.donutAuctionItemWorth));
+        }
+    }
+    private void start() {
+        if (selectedItem.isEmpty()) return;
+        double enteredWorth = parseWorth(worthField.getText());
+        Config c = Config.get();
+        c.donutAuctionDurationSeconds = durationSeconds;
+        c.donutMinimumBid = minimumBid;
+        c.donutAuctionItemName = selectedItem.getName().getString();
+        c.donutAuctionItemId = selectedItemId();
+        if (Double.isFinite(enteredWorth) && enteredWorth >= 0) {
+            c.donutAuctionItemWorth = enteredWorth;
+            c.donutAuctionItemWorthKnown = true;
+        } else c.donutAuctionItemWorthKnown = false;
+        DonutSmp.startAuction(selectedItem);
+        close();
     }
     private static String money(double value) {
         if (value >= 1_000_000_000_000.0) return String.format(Locale.US, "%.2fT", value / 1_000_000_000_000.0);
@@ -87,7 +116,10 @@ public final class AuctionSetupScreen extends Screen {
         addDrawableChild(searchField);
         worthField = new TextFieldWidget(textRenderer, left() + 310, top() + 160, 235, 22, Text.literal("Item worth"));
         worthField.setPlaceholder(Text.literal("e.g. 1.5m"));
-        worthField.setText(c.donutAuctionItemWorthKnown ? Double.toString(c.donutAuctionItemWorth) : "");
+        durationSeconds = Math.max(5, Math.min(3600, c.donutAuctionDurationSeconds));
+        minimumBid = c.donutMinimumBid;
+        worthField.setText("");
+        setInitialFocus(searchField);
         addDrawableChild(worthField);
     }
     private String selectedItemId() {
@@ -132,15 +164,32 @@ public final class AuctionSetupScreen extends Screen {
         ctx.drawText(textRenderer, "ITEM WORTH", px, y + 145, 0xFFB9C2D8, false);
         worthField.setX(px); worthField.setY(y + 160); worthField.setWidth(235);
         ctx.drawText(textRenderer, "Supports 250k, 1.5m, 2b", px, y + 185, 0xFF8994AD, false);
-        ctx.drawText(textRenderer, "Auction timer", px, y + 210, 0xFFB9C2D8, false);
-        button(ctx, mouseX, mouseY, px, y + 228, 32, 22, "−");
-        ctx.drawCenteredTextWithShadow(textRenderer, durationSeconds + " sec", px + 112, y + 235, 0xFFF2F4FC);
-        button(ctx, mouseX, mouseY, px + 203, y + 228, 32, 22, "+");
+        ctx.drawText(textRenderer, "Auction timer", px, y + 204, 0xFFB9C2D8, false);
+        button(ctx, mouseX, mouseY, px, y + 218, 28, 20, "-");
+        ctx.drawCenteredTextWithShadow(textRenderer, fmtDuration(durationSeconds), px + 117, y + 224, 0xFFF2F4FC);
+        button(ctx, mouseX, mouseY, px + 207, y + 218, 28, 20, "+");
+        for (int i = 0; i < DURATIONS.length; i++) {
+            int bx = px + 34 + i * 43;
+            boolean on = durationSeconds == DURATIONS[i];
+            ctx.fill(bx, y + 240, bx + 40, y + 254, on ? 0xFF44356D : inside(mouseX, mouseY, bx, y + 240, 40, 14) ? HOVER : CARD);
+            ctx.drawCenteredTextWithShadow(textRenderer, fmtDuration(DURATIONS[i]), bx + 20, y + 243, 0xFFE8ECF8);
+        }
         ctx.drawText(textRenderer, "Minimum bid: $" + money(minimumBid), px, y + 260, 0xFFB9C2D8, false);
-        button(ctx, mouseX, mouseY, px, y + 278, 64, 22, "− 1K");
-        button(ctx, mouseX, mouseY, px + 70, y + 278, 64, 22, "+ 1K");
+        for (int i = 0; i < BID_STEPS.length; i++) {
+            int bx = px + i * 59;
+            button(ctx, mouseX, mouseY, bx, y + 272, 56, 16, (hasShiftDown() ? "-" : "+") + BID_LABELS[i]);
+        }
+        ctx.drawText(textRenderer, "Hold Shift to subtract", px + 120, y + 260, 0xFF8994AD, false);
+        boolean hasItem = !selectedItem.isEmpty();
+        boolean checking = Config.get().donutWorthPending;
+        ctx.fill(px + 150, y + 125, px + 235, y + 141, !hasItem ? 0xFF161C2B : inside(mouseX, mouseY, px + 150, y + 125, 85, 16) ? HOVER : CARD);
+        ctx.drawCenteredTextWithShadow(textRenderer, checking ? "Checking..." : "Check worth", px + 192, y + 129,
+                hasItem ? 0xFFE8ECF8 : 0xFF66708A);
         button(ctx, mouseX, mouseY, x + 16, y + 298, 100, 18, "Cancel");
-        button(ctx, mouseX, mouseY, x + 310, y + 298, 235, 18, "Start auction tracker");
+        ctx.fill(x + 310, y + 298, x + 545, y + 316, hasItem ? 0xFF5B46A8 : 0xFF2A3047);
+        ctx.drawCenteredTextWithShadow(textRenderer, hasItem ? "Start auction tracker" : "Select an item first",
+                x + 427, y + 303, hasItem ? 0xFFFFFFFF : 0xFF7A849C);
+        if (checking) syncWorthField();
         super.render(ctx, mouseX, mouseY, delta);
     }
     @Override
@@ -153,31 +202,27 @@ public final class AuctionSetupScreen extends Screen {
                 if (index < results.size() && inside(mx, my, x + 16, ry, 250, 21)) {
                     selectedItem = new ItemStack(results.get(index));
                     Config.get().donutAuctionItemWorthKnown = false;
+                    worthField.setText("");
                     return true;
                 }
             }
             if (inside(mx, my, x + 16, y + 298, 100, 18)) { close(); return true; }
-            if (inside(mx, my, px, y + 228, 32, 22)) { durationSeconds = Math.max(5, durationSeconds - 15); return true; }
-            if (inside(mx, my, px + 203, y + 228, 32, 22)) { durationSeconds = Math.min(3600, durationSeconds + 15); return true; }
-            if (inside(mx, my, px, y + 278, 64, 22)) { minimumBid = Math.max(0, minimumBid - 1_000); return true; }
-            if (inside(mx, my, px + 70, y + 278, 64, 22)) { minimumBid += 1_000; return true; }
-            if (inside(mx, my, x + 310, y + 298, 235, 18)) {
-                if (!selectedItem.isEmpty()) {
-                    double enteredWorth = parseWorth(worthField.getText());
-                    Config c = Config.get();
-                    c.donutAuctionDurationSeconds = durationSeconds;
-                    c.donutMinimumBid = minimumBid;
-                    c.donutAuctionItemName = selectedItem.getName().getString();
-                    c.donutAuctionItemId = selectedItemId();
-                    if (Double.isFinite(enteredWorth) && enteredWorth >= 0) {
-                        c.donutAuctionItemWorth = enteredWorth;
-                        c.donutAuctionItemWorthKnown = true;
-                    } else c.donutAuctionItemWorthKnown = false;
-                    DonutSmp.startAuction(selectedItem);
-                    close();
+            if (inside(mx, my, px, y + 218, 28, 20)) { durationSeconds = Math.max(5, durationSeconds - (hasShiftDown() ? 5 : 15)); return true; }
+            if (inside(mx, my, px + 207, y + 218, 28, 20)) { durationSeconds = Math.min(3600, durationSeconds + (hasShiftDown() ? 5 : 15)); return true; }
+            for (int i = 0; i < DURATIONS.length; i++) {
+                if (inside(mx, my, px + 34 + i * 43, y + 240, 40, 14)) { durationSeconds = DURATIONS[i]; return true; }
+            }
+            for (int i = 0; i < BID_STEPS.length; i++) {
+                if (inside(mx, my, px + i * 59, y + 272, 56, 16)) {
+                    minimumBid = Math.max(0, minimumBid + (hasShiftDown() ? -BID_STEPS[i] : BID_STEPS[i]));
+                    return true;
                 }
+            }
+            if (inside(mx, my, px + 150, y + 125, 85, 16)) {
+                if (!selectedItem.isEmpty()) DonutSmp.requestWorth(selectedItem);
                 return true;
             }
+            if (inside(mx, my, x + 310, y + 298, 235, 18)) { start(); return true; }
         }
         return super.mouseClicked(click, doubled);
     }
@@ -189,6 +234,15 @@ public final class AuctionSetupScreen extends Screen {
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+    }
+    @Override
+    public boolean keyPressed(net.minecraft.client.input.KeyInput input) {
+        if ((input.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER || input.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_KP_ENTER)
+                && !selectedItem.isEmpty() && !searchField.isFocused()) {
+            start();
+            return true;
+        }
+        return super.keyPressed(input);
     }
     @Override
     public void close() { Config.save(); super.close(); }

@@ -88,6 +88,32 @@ public final class Config {
     // Quick hotbar binds: which hotbar slot (0-8) each Quick Slot key selects
     public int[] quickSlots = {0, 1, 2, 3};
 
+    // ---- Competitive Safe Mode ----
+    // Disables modules flagged as restricted (freelook, middle-click utilities, hitboxes...) while
+    // keeping purely visual HUDs on. Turns itself on automatically on the listed servers.
+    public boolean safeMode = false;
+    public boolean autoSafeMode = true;
+    public java.util.List<String> safeServers = new java.util.ArrayList<>(java.util.List.of("hypixel.net", "minemen.club"));
+
+    // ---- Module presets (name -> module id -> enabled) ----
+    public Map<String, Map<String, Boolean>> presets = new LinkedHashMap<>();
+
+    // ---- HUD editor ----
+    public Map<String, Float> hudScales = new HashMap<>();
+    public Map<String, Integer> hudColors = new HashMap<>();
+    public boolean hudSnap = true;
+    public int hudGrid = 4;
+
+    // ---- Combat utilities ----
+    public boolean crosshairCooldownArc = true;
+    public boolean crosshairShieldAlert = true;
+    public boolean totemChatAlert = true;
+    public boolean middlePearl = true;
+    public boolean middleXp = true;
+    public boolean middleFirework = true;
+    /** Saved hotbar layout (registry ids); empty string means "anything". */
+    public String[] hotbarPreset = new String[]{"", "", "", "", "", "", "", "", ""};
+
     public static Config get() {
         return instance;
     }
@@ -109,6 +135,13 @@ public final class Config {
                     if (c.hudPositions == null) c.hudPositions = new HashMap<>();
                     if (c.arrayGuiOffsets == null) c.arrayGuiOffsets = new LinkedHashMap<>();
                     if (c.quickSlots == null || c.quickSlots.length != 4) c.quickSlots = new int[]{0, 1, 2, 3};
+                    if (c.safeServers == null) c.safeServers = new java.util.ArrayList<>(java.util.List.of("hypixel.net", "minemen.club"));
+                    if (c.presets == null) c.presets = new LinkedHashMap<>();
+                    if (c.hudScales == null) c.hudScales = new HashMap<>();
+                    if (c.hudColors == null) c.hudColors = new HashMap<>();
+                    if (c.hotbarPreset == null || c.hotbarPreset.length != 9) c.hotbarPreset = new String[]{"", "", "", "", "", "", "", "", ""};
+                    for (int i = 0; i < 9; i++) if (c.hotbarPreset[i] == null) c.hotbarPreset[i] = "";
+                    c.hudGrid = Math.max(1, Math.min(16, c.hudGrid));
                     if (c.swingSpeedTicks < 1 || c.swingSpeedTicks > 20) c.swingSpeedTicks = 6;
                     c.hudScale = Math.max(0.75, Math.min(1.5, c.hudScale));
                     c.guiStyle = Math.max(0, Math.min(1, c.guiStyle));
