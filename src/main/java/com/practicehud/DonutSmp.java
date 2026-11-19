@@ -43,6 +43,9 @@ public final class DonutSmp {
     private static long lastResultUntil = 0L;
     private static double shownBalance = Double.NaN;
     private static long lastFrameNanos = 0L;
+    private static long lastBidAt = 0L;
+    private static long lastExtendAt = 0L;
+    private static final java.util.Map<String, net.minecraft.item.ItemStack> ICONS = new java.util.HashMap<>();
     private static boolean dirty = false;
     private static int flushTicks = 0;
 
@@ -131,6 +134,7 @@ public final class DonutSmp {
 
     private static void recordBid(Config c, String bidder, double value) {
         c.donutBidCount++;
+        lastBidAt = System.currentTimeMillis();
         BID_LOG.addFirst(bidder + " - $" + money(value));
         while (BID_LOG.size() > 3) BID_LOG.removeLast();
         if (value > c.donutHighestBid) {
@@ -140,6 +144,7 @@ public final class DonutSmp {
                 long remaining = c.donutAuctionEndAt - System.currentTimeMillis();
                 if (remaining > 0 && remaining <= 10_000L) {
                     c.donutAuctionEndAt += Math.max(0, c.donutAntiSnipeSeconds) * 1000L;
+                    lastExtendAt = System.currentTimeMillis();
                 }
             }
         }
@@ -372,29 +377,140 @@ public final class DonutSmp {
                     Hud.Row.of("Open the auction menu to choose an item", Hud.WHITE));
             return;
         }
+        paintLiveAuction(ctx, c, now);
+    }
+
+    private static net.minecraft.item.ItemStack icon(String id) {
+        return ICONS.computeIfAbsent(id, k -> {
+            try {
+                var item = net.minecraft.registry.Registries.ITEM.get(net.minecraft.util.Identifier.of("minecraft", k));
+                return new net.minecraft.item.ItemStack(item);
+            } catch (Exception e) {
+                return net.minecraft.item.ItemStack.EMPTY;
+            }
+        });
+    }
+
+    private static int alpha(int rgb, float a) {
+        return ((int) (Math.max(0f, Math.min(1f, a)) * 255) << 24) | (rgb & 0xFFFFFF);
+    }
+
+    private static void paintLiveAuction(DrawContext ctx, Config c, long now) {
+        net.minecraft.client.font.TextRenderer tr = MinecraftClient.getInstance().textRenderer;
         long left = Math.max(0L, c.donutAuctionEndAt - now);
         long total = Math.max(1L, c.donutAuctionDurationSeconds * 1000L);
         float frac = Math.min(1f, left / (float) total);
         boolean urgent = left <= 10_000L;
-        boolean blink = urgent && (now / 350L) % 2L == 0L;
-        int timeColor = left <= 5_000L ? (blink ? Hud.RED : 0xFFFF9AAA) : urgent ? Hud.YELLOW : Hud.GREEN;
+        boolean critical = left <= 5_000L;
+        float pulse = (float) (0.5 + 0.5 * Math.sin(now / 140.0));
+        int timeColor = critical ? Hud.RED : urgent ? Hud.YELLOW : Hud.GREEN;
+        boolean hasWorth = c.donutAuctionItemWorthKnown && c.donutAuctionItemWorth > 0;
+        boolean extended = now - lastExtendAt < 2500L;
+        float bidFlash = 1f - Math.min(1f, (now - lastBidAt) / 700f);
+        int n = BID_LOG.size();
 
-        java.util.List<Hud.Row> rows = new java.util.ArrayList<>();
-        rows.add(Hud.Row.of("Item: " + (c.donutAuctionItemName.isBlank() ? "Not selected" : c.donutAuctionItemName), Hud.WHITE));
-        rows.add(Hud.Row.bar(String.format("Time left: %d:%02d", left / 60_000L, (left / 1000L) % 60L), frac, timeColor));
-        rows.add(Hud.Row.of("Highest: " + (c.donutHighestBidder.isBlank() ? "No bids" : c.donutHighestBidder), Hud.WHITE));
-        rows.add(Hud.Row.of("Bid: $" + money(c.donutHighestBid), Hud.GREEN));
-        if (c.donutAuctionItemWorthKnown && c.donutAuctionItemWorth > 0) {
-            double pct = c.donutHighestBid / c.donutAuctionItemWorth * 100.0;
-            rows.add(Hud.Row.of("Worth: $" + money(c.donutAuctionItemWorth) + " (" + Math.round(pct) + "%)",
-                    pct >= 100 ? Hud.GREEN : Hud.AQUA));
-        } else {
-            rows.add(Hud.Row.of("Worth: Unknown", Hud.GRAY));
-        }
-        rows.add(Hud.Row.of("Bids: " + c.donutBidCount + "  Min: $" + money(c.donutMinimumBid), Hud.GRAY));
-        for (String line : BID_LOG) rows.add(Hud.Row.of("  " + line, Hud.GRAY));
-        if (urgent && c.donutAntiSnipe) rows.add(Hud.Row.of("Anti-snipe: late bids extend", Hud.YELLOW));
-        Hud.panel(ctx, "DonutSMP Live Auction", Hud.GOLD, rows.toArray(new Hud.Row[0]));
+        int w = 176;
+        int h = Hud.titleHeight() + 24 + 26 + 8 + 30 + (hasWorth ? 15 : 0) + (n > 0 ? 3 + n * 10 : 0) + 14 + 6;
+
+        Hud.custom(ctx, "DonutSMP Live Auction", Hud.GOLD, w, h, (g, x, y, cw, ch) -> {
+            int pad = Hud.padding();
+            int inner = cw - pad * 2;
+            int cy = y + 3;
+
+            // Item row: icon, name, worth.
+            net.minecraft.item.ItemStack stack = icon(c.donutAuctionItemId);
+            g.fill(x + pad, cy, x + pad + 20, cy + 20, 0xFF1A2236);
+            if (!stack.isEmpty()) g.drawItem(stack, x + pad + 2, cy + 2);
+            String name = c.donutAuctionItemName.isBlank() ? "No item selected" : c.donutAuctionItemName;
+            while (name.length() > 3 && tr.getWidth(name) > inner - 26) name = name.substring(0, name.length() - 1);
+            g.drawTextWithShadow(tr, name, x + pad + 26, cy + 1, Hud.WHITE);
+            g.drawTextWithShadow(tr, hasWorth ? "Worth $" + money(c.donutAuctionItemWorth) : "Worth unknown",
+                    x + pad + 26, cy + 11, hasWorth ? Hud.AQUA : Hud.GRAY);
+            cy += 24;
+
+            // Big countdown with a draining bar.
+            String t = String.format("%d:%02d", left / 60_000L, (left / 1000L) % 60L);
+            int tColor = critical ? (pulse > 0.5f ? Hud.RED : 0xFFFF9AAA) : timeColor;
+            var m = g.getMatrices();
+            m.pushMatrix();
+            m.translate((float) (x + pad), (float) cy);
+            m.scale(2f, 2f);
+            g.drawTextWithShadow(tr, t, 0, 0, tColor);
+            m.popMatrix();
+            String tag = left == 0 ? "ENDING" : extended ? "+" + c.donutAntiSnipeSeconds + "s EXTENDED" : critical ? "LAST CALL" : urgent ? "ENDING SOON" : "";
+            if (!tag.isEmpty()) g.drawTextWithShadow(tr, tag, x + cw - pad - tr.getWidth(tag), cy + 4, extended ? Hud.AQUA : timeColor);
+            cy += 20;
+            g.fill(x + pad, cy, x + cw - pad, cy + 4, 0xFF232C42);
+            int fill = Math.round(inner * frac);
+            if (fill > 0) g.fill(x + pad, cy, x + pad + fill, cy + 4, tColor);
+            if (fill > 1) g.fill(x + pad + fill - 1, cy, x + pad + fill, cy + 4, 0xFFFFFFFF);
+            cy += 8;
+
+            // Highest bid block (flashes on a new bid).
+            if (bidFlash > 0f) g.fill(x + pad - 3, cy - 1, x + cw - pad + 3, cy + 27, alpha(Hud.GREEN, bidFlash * 0.25f));
+            boolean has = !c.donutHighestBidder.isBlank();
+            g.drawTextWithShadow(tr, "HIGHEST BID", x + pad, cy, Hud.GRAY);
+            if (bidFlash > 0f) {
+                String nb = "NEW BID";
+                g.drawTextWithShadow(tr, nb, x + cw - pad - tr.getWidth(nb), cy, Hud.GREEN);
+            } else {
+                String cnt = c.donutBidCount + (c.donutBidCount == 1 ? " bid" : " bids");
+                g.drawTextWithShadow(tr, cnt, x + cw - pad - tr.getWidth(cnt), cy, Hud.GRAY);
+            }
+            cy += 10;
+            String amount = has ? "$" + money(c.donutHighestBid) : "No bids yet";
+            m.pushMatrix();
+            m.translate((float) (x + pad), (float) cy);
+            m.scale(1.5f, 1.5f);
+            g.drawTextWithShadow(tr, amount, 0, 0, has ? Hud.GREEN : Hud.GRAY);
+            m.popMatrix();
+            if (has) {
+                String who = c.donutHighestBidder;
+                g.drawTextWithShadow(tr, who, x + cw - pad - tr.getWidth(who), cy + 3, Hud.WHITE);
+            } else {
+                String min = "min $" + money(c.donutMinimumBid);
+                g.drawTextWithShadow(tr, min, x + cw - pad - tr.getWidth(min), cy + 3, Hud.GRAY);
+            }
+            cy += 20;
+
+            // Bid vs worth.
+            if (hasWorth) {
+                double pct = c.donutHighestBid / c.donutAuctionItemWorth;
+                g.fill(x + pad, cy + 8, x + cw - pad, cy + 10, 0xFF232C42);
+                int f = (int) Math.round(inner * Math.min(1.0, pct));
+                int pc = pct >= 1.0 ? Hud.GREEN : pct >= 0.7 ? Hud.YELLOW : Hud.AQUA;
+                if (f > 0) g.fill(x + pad, cy + 8, x + pad + f, cy + 10, pc);
+                String ps = Math.round(pct * 100) + "% of worth";
+                g.drawTextWithShadow(tr, ps, x + pad, cy - 1, pc);
+                cy += 15;
+            }
+
+            // Recent bids.
+            if (n > 0) {
+                cy += 3;
+                int i = 0;
+                for (String line : BID_LOG) {
+                    g.drawTextWithShadow(tr, line, x + pad, cy, i == 0 ? Hud.WHITE : Hud.GRAY);
+                    cy += 10;
+                    i++;
+                }
+            }
+            cy += 3;
+            g.fill(x + pad, cy - 2, x + cw - pad, cy - 1, 0x2EFFFFFF);
+            String foot = (c.donutAntiSnipe ? "Anti-snipe on" : "Anti-snipe off")
+                    + (c.donutMinimumBid > 0 ? "  -  min $" + money(c.donutMinimumBid) : "");
+            g.drawTextWithShadow(tr, foot, x + pad, cy + 1, Hud.GRAY);
+
+            // Urgent pulsing frame around the whole card.
+            if (urgent) {
+                int fc = alpha(timeColor, 0.25f + 0.55f * pulse);
+                int top = y - Hud.titleHeight();
+                g.fill(x, top, x + cw, top + 1, fc);
+                g.fill(x, y + ch - 1, x + cw, y + ch, fc);
+                g.fill(x, top, x + 1, y + ch, fc);
+                g.fill(x + cw - 1, top, x + cw, y + ch, fc);
+            }
+        });
     }
 
     public static void renderStreamInfo(DrawContext ctx, MinecraftClient mc, ClientPlayerEntity player) {

@@ -141,6 +141,35 @@ public final class Hud {
         if (scaled) ctx.getMatrices().popMatrix();
     }
 
+    /** Lets a module draw its own card contents inside the standard Hud surface/header/placement. */
+    @FunctionalInterface
+    public interface Painter { void paint(DrawContext ctx, int x, int y, int w, int h); }
+
+    public static void custom(DrawContext ctx, String title, int accent, int w, int h, Painter painter) {
+        if (!DRAWN.add(title)) return;
+        accent = accentFor(title, accent);
+        TextRenderer tr = MinecraftClient.getInstance().textRenderer;
+        float scale = scaleFor(title);
+        boolean scaled = Math.abs(scale - 1f) > 0.01f;
+        int[] pos = place(ctx, title, Math.round(w * scale), Math.round(h * scale));
+        int x = pos[0], y = pos[1];
+        if (scaled) {
+            var m = ctx.getMatrices();
+            m.pushMatrix();
+            m.translate((float) x, (float) y);
+            m.scale(scale, scale);
+            x = 0;
+            y = 0;
+        }
+        surface(ctx, x, y, w, h, accent);
+        header(ctx, tr, title, x, y, w, accent);
+        painter.paint(ctx, x, y + TITLE_H, w, h - TITLE_H);
+        if (scaled) ctx.getMatrices().popMatrix();
+    }
+
+    public static int titleHeight() { return TITLE_H; }
+    public static int padding() { return PAD; }
+
     /** A small bar graph card (e.g. FPS history). {@code values} are drawn oldest to newest. */
     public static void graph(DrawContext ctx, String title, int accent, int[] values, String valueText, int valueColor) {
         if (!DRAWN.add(title)) return;
