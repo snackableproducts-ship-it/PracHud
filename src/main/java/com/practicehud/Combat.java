@@ -373,7 +373,7 @@ public final class Combat {
 
         for (EndCrystalEntity crystal : mc.world.getEntitiesByClass(EndCrystalEntity.class,
                 p.getBoundingBox().expand(13.0), e -> true)) {
-            Vec3d src = crystal.getPos();
+            Vec3d src = new Vec3d(crystal.getX(), crystal.getY(), crystal.getZ());
             float damage = blastDamage(mc, p, src, 6.0f);
             out.add(new Blast("Crystal", Math.sqrt(p.squaredDistanceTo(src)), damage, damage >= hp, src));
         }
@@ -598,7 +598,7 @@ public final class Combat {
                 p.getBoundingBox().expand(96.0), e -> true)) {
             Entity owner = pearl.getOwner();
             if (owner == p) continue;
-            Path path = simulate(mc, pearl, pearl.getPos(), pearl.getVelocity(), 0.03, 200);
+            Path path = simulate(mc, pearl, new Vec3d(pearl.getX(), pearl.getY(), pearl.getZ()), pearl.getVelocity(), 0.03, 200);
             String who = owner == null ? "Pearl" : owner.getName().getString();
             drawPath(ctx, mc, path, Hud.RED, p.getEyePos(), who);
         }

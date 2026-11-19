@@ -122,6 +122,11 @@ public final class AuctionSetupScreen extends Screen {
         setInitialFocus(searchField);
         addDrawableChild(worthField);
     }
+    private boolean shiftHeld() {
+        long window = MinecraftClient.getInstance().getWindow().getHandle();
+        return org.lwjgl.glfw.GLFW.glfwGetKey(window, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT) == org.lwjgl.glfw.GLFW.GLFW_PRESS
+                || org.lwjgl.glfw.GLFW.glfwGetKey(window, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_SHIFT) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
+    }
     private String selectedItemId() {
         return selectedItem.isEmpty() ? "" : Registries.ITEM.getId(selectedItem.getItem()).getPath();
     }
@@ -177,7 +182,7 @@ public final class AuctionSetupScreen extends Screen {
         ctx.drawText(textRenderer, "Minimum bid: $" + money(minimumBid), px, y + 260, 0xFFB9C2D8, false);
         for (int i = 0; i < BID_STEPS.length; i++) {
             int bx = px + i * 59;
-            button(ctx, mouseX, mouseY, bx, y + 272, 56, 16, (hasShiftDown() ? "-" : "+") + BID_LABELS[i]);
+            button(ctx, mouseX, mouseY, bx, y + 272, 56, 16, (shiftHeld() ? "-" : "+") + BID_LABELS[i]);
         }
         ctx.drawText(textRenderer, "Hold Shift to subtract", px + 120, y + 260, 0xFF8994AD, false);
         boolean hasItem = !selectedItem.isEmpty();
@@ -207,14 +212,14 @@ public final class AuctionSetupScreen extends Screen {
                 }
             }
             if (inside(mx, my, x + 16, y + 298, 100, 18)) { close(); return true; }
-            if (inside(mx, my, px, y + 218, 28, 20)) { durationSeconds = Math.max(5, durationSeconds - (hasShiftDown() ? 5 : 15)); return true; }
-            if (inside(mx, my, px + 207, y + 218, 28, 20)) { durationSeconds = Math.min(3600, durationSeconds + (hasShiftDown() ? 5 : 15)); return true; }
+            if (inside(mx, my, px, y + 218, 28, 20)) { durationSeconds = Math.max(5, durationSeconds - (shiftHeld() ? 5 : 15)); return true; }
+            if (inside(mx, my, px + 207, y + 218, 28, 20)) { durationSeconds = Math.min(3600, durationSeconds + (shiftHeld() ? 5 : 15)); return true; }
             for (int i = 0; i < DURATIONS.length; i++) {
                 if (inside(mx, my, px + 34 + i * 43, y + 240, 40, 14)) { durationSeconds = DURATIONS[i]; return true; }
             }
             for (int i = 0; i < BID_STEPS.length; i++) {
                 if (inside(mx, my, px + i * 59, y + 272, 56, 16)) {
-                    minimumBid = Math.max(0, minimumBid + (hasShiftDown() ? -BID_STEPS[i] : BID_STEPS[i]));
+                    minimumBid = Math.max(0, minimumBid + (shiftHeld() ? -BID_STEPS[i] : BID_STEPS[i]));
                     return true;
                 }
             }
