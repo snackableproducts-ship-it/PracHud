@@ -26,8 +26,8 @@ public final class ArrayGuiScreen extends Screen {
     private static final int TEXT_OFF = 0xFFA3ABB9;
     private static final int OFF_TRACK = 0xFF2A303B;
     private static final int LOCK = 0xFFE59B4A;
-    private static final float TEXT_SCALE = 0.8f;
-    private static final int ROW_H = 11, HEADER_H = 15, TOP = 10, GAP = 5, PANEL_W = 108, FIELD_H = 14;
+    private static final float TEXT_SCALE = 1.0f;
+    private static final int ROW_H = 16, HEADER_H = 21, TOP = 12, GAP = 8, PANEL_W = 138, FIELD_H = 18;
     private static final String SEARCH = "SEARCH";
 
     private record Group(String title, int tint, List<Module> modules) {}
@@ -49,7 +49,7 @@ public final class ArrayGuiScreen extends Screen {
 
     @Override
     protected void init() {
-        searchField = new TextFieldWidget(textRenderer, 0, 0, PANEL_W - 8, 12, Text.literal("Search"));
+        searchField = new TextFieldWidget(textRenderer, 0, 0, PANEL_W - 8, 15, Text.literal("Search"));
         searchField.setPlaceholder(Text.literal("Search..."));
         searchField.setMaxLength(32);
         addSelectableChild(searchField);
@@ -153,18 +153,18 @@ public final class ArrayGuiScreen extends Screen {
             ctx.fill(x + 1, ry, x + panelW - 1, ry + ROW_H, 0x30FFFFFF);
             hovered = module;
         }
-        int textMax = panelW - 34;
-        small(ctx, fit(module.name.toUpperCase(Locale.ROOT), textMax), x + 6, ry + 2, on ? TEXT_ON : TEXT_OFF);
+        int textMax = panelW - 48;
+        small(ctx, fit(module.name.toUpperCase(Locale.ROOT), textMax), x + 8, ry + 4, on ? TEXT_ON : TEXT_OFF);
         // Toggle pill.
-        int px = x + panelW - 19, py = ry + 3;
+        int px = x + panelW - 26, py = ry + 4;
         int track = locked ? (raw ? 0xFF8A5A24 : OFF_TRACK) : on ? accent : OFF_TRACK;
-        ctx.fill(px + 1, py, px + 12, py + 5, track);
-        ctx.fill(px, py + 1, px + 13, py + 4, track);
-        int kx = raw ? px + 7 : px + 1;
-        ctx.fill(kx, py, kx + 5, py + 5, 0xFFF4F6F8);
+        ctx.fill(px + 1, py, px + 17, py + 8, track);
+        ctx.fill(px, py + 1, px + 18, py + 7, track);
+        int kx = raw ? px + 10 : px + 1;
+        ctx.fill(kx, py, kx + 7, py + 8, 0xFFF4F6F8);
         if (locked) {
             String l = "L";
-            small(ctx, l, px - 7, ry + 2, LOCK);
+            small(ctx, l, px - 9, ry + 4, LOCK);
         }
         hits.add(new Hit(x + 1, ry, panelW - 2, ROW_H, () -> { module.toggle(); Config.save(); }));
     }
@@ -180,7 +180,7 @@ public final class ArrayGuiScreen extends Screen {
         int panelW = PANEL_W;
         int totalW = panelW * columns + GAP * (columns - 1);
         int startX = Math.max(8, (width - totalW) / 2);
-        int bottom = height - 16;
+        int bottom = height - 20;
         int accent = Config.get().accentColor | 0xFF000000;
 
         int[] rowHeights = rowHeights(groups, columns);
@@ -210,13 +210,13 @@ public final class ArrayGuiScreen extends Screen {
                 ctx.fill(x, y, x + panelW, y + panelH, PANEL);
                 ctx.fill(x, y, x + panelW, y + HEADER_H, HEADER);
                 // Category icon: tinted square with a darker core.
-                ctx.fill(x + 5, y + 4, x + 12, y + 11, group.tint());
-                ctx.fill(x + 7, y + 6, x + 10, y + 9, 0xFF0B0D12);
+                ctx.fill(x + 6, y + 5, x + 15, y + 14, group.tint());
+                ctx.fill(x + 8, y + 7, x + 13, y + 12, 0xFF0B0D12);
                 String title = group.title();
-                small(ctx, title, x + 16, y + 4, TEXT_ON);
-                small(ctx, title, x + 17, y + 4, TEXT_ON);
+                small(ctx, title, x + 20, y + 6, TEXT_ON);
+                small(ctx, title, x + 21, y + 6, TEXT_ON);
                 String toggle = collapsed ? "+" : "-";
-                small(ctx, toggle, x + panelW - 10, y + 4, 0xFFC8CEDA);
+                small(ctx, toggle, x + panelW - 14, y + 6, 0xFFC8CEDA);
                 headers.add(new HeaderHit(group.title(), x, y, panelW, HEADER_H));
 
                 if (!collapsed) {
@@ -229,7 +229,7 @@ public final class ArrayGuiScreen extends Screen {
                         ry += FIELD_H + 4;
                         fieldDrawn = true;
                         if (group.modules().isEmpty()) {
-                            small(ctx, searchField.getText().isBlank() ? "TYPE TO SEARCH" : "NO RESULTS", x + 6, ry + 2, TEXT_OFF);
+                            small(ctx, searchField.getText().isBlank() ? "TYPE TO SEARCH" : "NO RESULTS", x + 8, ry + 4, TEXT_OFF);
                         }
                     }
                     for (Module module : group.modules()) {
@@ -251,9 +251,9 @@ public final class ArrayGuiScreen extends Screen {
             ctx.fill(hx + 18, hy, hx + 22, hy + 4, 0xFFF7F4EF);
         }
 
-        small(ctx, "XMCORE  /  RIGHT SHIFT SWITCHES GUI  /  DRAG HEADERS  /  - COLLAPSES", 8, height - 11, 0xAAE3E8F0);
+        small(ctx, "XMCORE  /  RIGHT SHIFT SWITCHES GUI  /  DRAG HEADERS  /  - COLLAPSES", 8, height - 14, 0xAAE3E8F0);
         String label = Modules.ALL.size() + " MODULES";
-        small(ctx, label, width - sw(label) - 8, height - 11, accent);
+        small(ctx, label, width - sw(label) - 8, height - 14, accent);
 
         if (hovered != null) drawTooltip(ctx, hovered, mouseX, mouseY);
     }
@@ -261,20 +261,20 @@ public final class ArrayGuiScreen extends Screen {
     private void drawTooltip(DrawContext ctx, Module m, int mouseX, int mouseY) {
         String desc = m.description.toUpperCase(Locale.ROOT);
         if (m.isLocked()) desc += "  [HELD OFF BY SAFE MODE]";
-        List<String> lines = wrap(desc, 190);
+        List<String> lines = wrap(desc, 260);
         int w = 0;
         for (String l : lines) w = Math.max(w, sw(l));
         w += 10;
-        int h = lines.size() * 9 + 6;
+        int h = lines.size() * 12 + 8;
         int x = mouseX + 10, y = mouseY + 8;
         if (x + w > width - 4) x = mouseX - w - 6;
         if (y + h > height - 4) y = height - h - 4;
         ctx.fill(x - 1, y - 1, x + w + 1, y + h + 1, 0xFF3A4660);
         ctx.fill(x, y, x + w, y + h, 0xF0090B10);
-        int ly = y + 4;
+        int ly = y + 5;
         for (String l : lines) {
-            small(ctx, l, x + 5, ly, 0xFFF0F2F8);
-            ly += 9;
+            small(ctx, l, x + 6, ly, 0xFFF0F2F8);
+            ly += 12;
         }
     }
 
@@ -319,7 +319,7 @@ public final class ArrayGuiScreen extends Screen {
     public boolean mouseClicked(Click click, boolean doubled) {
         double mx = click.x(), my = click.y();
         // Search box: let the text field take focus/caret.
-        if (mx >= fieldX && mx < fieldX + fieldW && my >= fieldY && my < fieldY + 12 && searchField != null
+        if (mx >= fieldX && mx < fieldX + fieldW && my >= fieldY && my < fieldY + 15 && searchField != null
                 && !COLLAPSED.contains(SEARCH)) {
             return super.mouseClicked(click, doubled);
         }
@@ -328,7 +328,7 @@ public final class ArrayGuiScreen extends Screen {
         for (int i = headers.size() - 1; i >= 0; i--) {
             HeaderHit header = headers.get(i);
             if (mx >= header.x() && mx < header.x() + header.w() && my >= header.y() && my < header.y() + header.h()) {
-                if (mx >= header.x() + header.w() - 16) {
+                if (mx >= header.x() + header.w() - 24) {
                     if (!COLLAPSED.remove(header.category())) COLLAPSED.add(header.category());
                 } else {
                     draggingCategory = header.category();
@@ -355,7 +355,7 @@ public final class ArrayGuiScreen extends Screen {
         int columns = Math.min(columnsForWidth(), groups.size());
         int contentHeight = 0;
         for (int h : rowHeights(groups, columns)) contentHeight += h + GAP;
-        int maxScroll = Math.max(0, contentHeight - (height - 16 - TOP));
+        int maxScroll = Math.max(0, contentHeight - (height - 20 - TOP));
         scroll = Math.max(0, Math.min(maxScroll, scroll - (int)Math.round(verticalAmount * 20)));
         return true;
     }
