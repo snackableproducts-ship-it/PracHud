@@ -100,6 +100,25 @@ public final class DonutSmp {
             return;
         }
 
+        // Pay-to-bid: while an auction is running, money sent to you counts as a bid under your minimum.
+        if (Modules.enabled("donut_auction") && c.donutAuctionActive) {
+            for (int i = 0; i < INCOMING_PATTERNS.length; i++) {
+                Matcher pay = INCOMING_PATTERNS[i].matcher(line);
+                if (!pay.find()) continue;
+                String payer = i == 1 ? pay.group(2) : pay.group(1);
+                double value = amount(i == 1 ? pay.group(1) : pay.group(2));
+                if (Double.isFinite(value) && value > 0) {
+                    if (value >= c.donutMinimumBid) {
+                        recordBid(c, payer, value);
+                    } else {
+                        pushLog(payer + " - $" + money(value) + " (under min)");
+                    }
+                    markDirty();
+                }
+                break; // keep going so the earnings tracker still sees the payment
+            }
+        }
+
         if (Modules.enabled("donut_earnings") && c.donutLiveAutoTrack) {
             for (int i = 0; i < INCOMING_PATTERNS.length; i++) {
                 Matcher incoming = INCOMING_PATTERNS[i].matcher(line);
@@ -132,11 +151,15 @@ public final class DonutSmp {
         }
     }
 
+    private static void pushLog(String line) {
+        BID_LOG.addFirst(line);
+        while (BID_LOG.size() > 5) BID_LOG.removeLast();
+    }
+
     private static void recordBid(Config c, String bidder, double value) {
         c.donutBidCount++;
         lastBidAt = System.currentTimeMillis();
-        BID_LOG.addFirst(bidder + " - $" + money(value));
-        while (BID_LOG.size() > 3) BID_LOG.removeLast();
+        pushLog(bidder + " - $" + money(value));
         if (value > c.donutHighestBid) {
             c.donutHighestBid = value;
             c.donutHighestBidder = bidder;
@@ -449,16 +472,16 @@ public final class DonutSmp {
             // Highest bid block (flashes on a new bid).
             if (bidFlash > 0f) g.fill(x + pad - 3, cy - 1, x + cw - pad + 3, cy + 27, alpha(Hud.GREEN, bidFlash * 0.25f));
             boolean has = !c.donutHighestBidder.isBlank();
-            g.drawTextWithShadow(tr, "HIGHEST BID", x + pad, cy, Hud.GRAY);
+            g.drawTextWithShadow(tr, "TOP PAYMENT", x + pad, cy, Hud.GRAY);
             if (bidFlash > 0f) {
-                String nb = "NEW BID";
+                String nb = "NEW PAYMENT";
                 g.drawTextWithShadow(tr, nb, x + cw - pad - tr.getWidth(nb), cy, Hud.GREEN);
             } else {
-                String cnt = c.donutBidCount + (c.donutBidCount == 1 ? " bid" : " bids");
+                String cnt = c.donutBidCount + (c.donutBidCount == 1 ? " payment" : " payments");
                 g.drawTextWithShadow(tr, cnt, x + cw - pad - tr.getWidth(cnt), cy, Hud.GRAY);
             }
             cy += 10;
-            String amount = has ? "$" + money(c.donutHighestBid) : "No bids yet";
+            String amount = has ? "$" + money(c.donutHighestBid) : "Waiting for payments";
             m.pushMatrix();
             m.translate((float) (x + pad), (float) cy);
             m.scale(1.5f, 1.5f);

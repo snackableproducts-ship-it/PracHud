@@ -240,7 +240,7 @@ public final class Modules {
         add("donut_goal_alert", "Earnings Goal Alert", CAT_DONUT,
                 "Notifies you when your tracked virtual earnings reach your goal.", null);
         add("donut_auction", "Auction Tracker", CAT_DONUT,
-                "Tracks auction countdowns, bid announcements and highest bids.", DonutSmp::renderAuction);
+                "Pay-to-bid auction: set a minimum, and every payment sent to you shows up live with the payer's name and amount.", DonutSmp::renderAuction);
         add("donut_stream_info", "Stream Info HUD", CAT_DONUT,
                 "Shows your player name and DonutSMP stream status.", DonutSmp::renderStreamInfo);
 
