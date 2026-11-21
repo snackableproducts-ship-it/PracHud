@@ -24,6 +24,14 @@ public final class AuctionSetupScreen extends Screen {
     private static final int[] DURATIONS = {30, 60, 120, 300};
     private static final double[] BID_STEPS = {1_000, 10_000, 100_000, 1_000_000};
     private static final String[] BID_LABELS = {"1K", "10K", "100K", "1M"};
+    private static final java.util.LinkedList<String> RECENT = new java.util.LinkedList<>();
+    private static final String[] POPULAR = {"netherite_ingot", "elytra", "totem_of_undying", "enchanted_golden_apple",
+            "diamond_block", "netherite_sword", "netherite_pickaxe", "mace", "trident", "beacon", "shulker_box",
+            "end_crystal", "experience_bottle", "spawner", "dragon_egg", "netherite_upgrade_smithing_template",
+            "nether_star", "golden_apple", "diamond", "emerald_block"};
+    private float smoothScroll = 0f;
+    private int cursor = -1;
+    private boolean draggingBar = false;
     private TextFieldWidget searchField;
     private TextFieldWidget worthField;
     private final List<Item> results = new ArrayList<>();
@@ -94,18 +102,66 @@ public final class AuctionSetupScreen extends Screen {
         try { return Double.parseDouble(value) * multiplier; }
         catch (NumberFormatException ignored) { return Double.NaN; }
     }
+    private static Item itemById(String id) {
+        try { return Registries.ITEM.get(net.minecraft.util.Identifier.of("minecraft", id)); }
+        catch (Exception e) { return net.minecraft.item.Items.AIR; }
+    }
+    /** Lower is better; -1 means no match. Every typed word must match the name or the item id. */
+    private static int score(String name, String id, String[] tokens) {
+        int total = 0;
+        for (String t : tokens) {
+            int s;
+            if (name.equals(t)) s = 0;
+            else if (name.startsWith(t)) s = 1;
+            else if (name.contains(" " + t)) s = 2;
+            else if (name.contains(t)) s = 3;
+            else if (id.contains(t)) s = 4;
+            else return -1;
+            total += s;
+        }
+        return total;
+    }
     private void refreshResults() {
         String query = searchField == null ? "" : searchField.getText().trim().toLowerCase(Locale.ROOT);
         results.clear();
-        if (query.isEmpty()) return;
-        Registries.ITEM.stream()
-                .filter(item -> item != net.minecraft.item.Items.AIR)
-                .filter(item -> item.getName().getString().toLowerCase(Locale.ROOT).contains(query)
-                        || Registries.ITEM.getId(item).getPath().replace('_', ' ').contains(query)
-                        || Registries.ITEM.getId(item).toString().toLowerCase(Locale.ROOT).contains(query))
-                .limit(200)
-                .forEach(results::add);
+        cursor = -1;
         resultScroll = 0;
+        smoothScroll = 0f;
+        if (query.isEmpty()) {
+            // Nothing typed: recent picks first, then commonly auctioned items.
+            java.util.LinkedHashSet<Item> seen = new java.util.LinkedHashSet<>();
+            for (String id : RECENT) seen.add(itemById(id));
+            for (String id : POPULAR) seen.add(itemById(id));
+            for (Item item : seen) if (item != net.minecraft.item.Items.AIR) results.add(item);
+            return;
+        }
+        String[] tokens = query.split("\\s+");
+        record Scored(Item item, int score, String name) {}
+        List<Scored> found = new ArrayList<>();
+        Registries.ITEM.stream().filter(item -> item != net.minecraft.item.Items.AIR).forEach(item -> {
+            String name = item.getName().getString().toLowerCase(Locale.ROOT);
+            String id = Registries.ITEM.getId(item).getPath().replace('_', ' ');
+            int sc = score(name, id, tokens);
+            if (sc >= 0) found.add(new Scored(item, sc, name));
+        });
+        found.sort(java.util.Comparator.comparingInt(Scored::score)
+                .thenComparingInt(f -> f.name().length()).thenComparing(Scored::name));
+        for (int i = 0; i < Math.min(200, found.size()); i++) results.add(found.get(i).item());
+    }
+    private void select(int index) {
+        if (index < 0 || index >= results.size()) return;
+        selectedItem = new ItemStack(results.get(index));
+        Config.get().donutAuctionItemWorthKnown = false;
+        worthField.setText("");
+        cursor = index;
+        String id = Registries.ITEM.getId(selectedItem.getItem()).getPath();
+        RECENT.remove(id);
+        RECENT.addFirst(id);
+        while (RECENT.size() > 8) RECENT.removeLast();
+    }
+    private void ensureVisible(int index) {
+        if (index < resultScroll) resultScroll = index;
+        else if (index > resultScroll + 7) resultScroll = index - 7;
     }
     @Override
     protected void init() {
@@ -121,6 +177,7 @@ public final class AuctionSetupScreen extends Screen {
         worthField.setText("");
         setInitialFocus(searchField);
         addDrawableChild(worthField);
+        refreshResults();
     }
     private boolean shiftHeld() {
         long window = MinecraftClient.getInstance().getWindow().getHandle();
@@ -139,20 +196,57 @@ public final class AuctionSetupScreen extends Screen {
         ctx.drawTextWithShadow(textRenderer, "DONUTSMP AUCTION", x + 16, y + 14, ACCENT);
         ctx.drawText(textRenderer, "Search for any Minecraft item", x + 16, y + 34, 0xFF9AA5BB, false);
         ctx.drawText(textRenderer, "ITEM SEARCH", x + 16, y + 46, 0xFFB9C2D8, false);
-        ctx.drawText(textRenderer, "SEARCH RESULTS", x + 16, y + 86, 0xFFB9C2D8, false);
-        for (int i = 0; i < 8; i++) {
-            int index = resultScroll + i;
-            int ry = y + 102 + i * 23;
+        boolean browsing = searchField.getText().trim().isEmpty();
+        ctx.drawText(textRenderer, browsing ? "RECENT & POPULAR" : "RESULTS", x + 16, y + 86, 0xFFB9C2D8, false);
+        smoothScroll += (resultScroll - smoothScroll) * 0.32f;
+        if (Math.abs(resultScroll - smoothScroll) < 0.01f) smoothScroll = resultScroll;
+        int listX = x + 16, listY = y + 102, listW = 244, viewH = 8 * 23 - 2;
+        String q = searchField.getText().trim().toLowerCase(Locale.ROOT);
+        ctx.enableScissor(listX, listY, listX + listW, listY + viewH);
+        int first = (int) Math.floor(smoothScroll);
+        float frac = smoothScroll - first;
+        for (int i = 0; i <= 8; i++) {
+            int index = first + i;
             if (index >= results.size()) break;
+            int ry = listY + Math.round((i - frac) * 23);
             Item item = results.get(index);
             boolean chosen = !selectedItem.isEmpty() && selectedItem.isOf(item);
-            ctx.fill(x + 16, ry, x + 266, ry + 21, chosen ? 0xFF44356D
-                    : inside(mouseX, mouseY, x + 16, ry, 250, 21) ? HOVER : CARD);
-            ctx.drawItem(new ItemStack(item), x + 19, ry + 2);
-            ctx.drawText(textRenderer, item.getName().getString(), x + 42, ry + 7, 0xFFE8ECF8, false);
+            boolean hov = inside(mouseX, mouseY, listX, ry, listW, 21) && mouseY >= listY && mouseY < listY + viewH;
+            boolean kb = index == cursor;
+            ctx.fill(listX, ry, listX + listW, ry + 21, chosen ? 0xFF44356D : hov ? HOVER : kb ? 0xFF222C44 : CARD);
+            if (chosen || kb) ctx.fill(listX, ry, listX + 2, ry + 21, ACCENT);
+            ctx.drawItem(new ItemStack(item), listX + 5, ry + 2);
+            String name = item.getName().getString();
+            int tx = listX + 28, ty = ry + 7;
+            int at = q.isEmpty() ? -1 : name.toLowerCase(Locale.ROOT).indexOf(q);
+            if (at >= 0) {
+                String pre = name.substring(0, at), hit = name.substring(at, at + q.length()), post = name.substring(at + q.length());
+                ctx.drawText(textRenderer, pre, tx, ty, 0xFFE8ECF8, false);
+                int w1 = textRenderer.getWidth(pre);
+                ctx.drawText(textRenderer, hit, tx + w1, ty, 0xFFFFD27A, false);
+                ctx.drawText(textRenderer, post, tx + w1 + textRenderer.getWidth(hit), ty, 0xFFE8ECF8, false);
+            } else {
+                ctx.drawText(textRenderer, name, tx, ty, 0xFFE8ECF8, false);
+            }
+            String idText = Registries.ITEM.getId(item).getPath();
+            int idX = listX + listW - 6 - textRenderer.getWidth(idText);
+            if (idX > tx + textRenderer.getWidth(name) + 10) ctx.drawText(textRenderer, idText, idX, ty, 0xFF5E6985, false);
         }
-        if (results.isEmpty()) ctx.drawText(textRenderer, "Type to search the item list", x + 20, y + 110, 0xFF8994AD, false);
-        else ctx.drawText(textRenderer, "Showing " + (resultScroll + 1) + "-" + Math.min(resultScroll + 8, results.size()) + " of " + results.size(), x + 16, y + 291, 0xFF8994AD, false);
+        ctx.disableScissor();
+        if (results.size() > 8) {
+            int trackX = listX + listW + 4;
+            int thumbH = Math.max(14, viewH * 8 / results.size());
+            int maxScroll = results.size() - 8;
+            int thumbY = listY + Math.round((viewH - thumbH) * (smoothScroll / maxScroll));
+            ctx.fill(trackX, listY, trackX + 4, listY + viewH, CARD);
+            ctx.fill(trackX, thumbY, trackX + 4, thumbY + thumbH, draggingBar ? 0xFFD2BFFF : ACCENT);
+        }
+        if (results.isEmpty()) {
+            ctx.drawText(textRenderer, "No items match \"" + searchField.getText().trim() + "\"", x + 20, y + 110, 0xFF8994AD, false);
+        } else {
+            ctx.drawText(textRenderer, (resultScroll + 1) + "-" + Math.min(resultScroll + 8, results.size()) + " of " + results.size()
+                    + "   Up/Down + Enter to pick", x + 16, y + 291, 0xFF8994AD, false);
+        }
 
         int px = x + 310;
         ctx.drawTextWithShadow(textRenderer, "SELECTED ITEM", px, y + 58, 0xFFB9C2D8);
@@ -202,14 +296,15 @@ public final class AuctionSetupScreen extends Screen {
         if (click.button() == 0) {
             double mx = click.x(), my = click.y();
             int x = left(), y = top(), px = x + 310;
-            for (int i = 0; i < 8; i++) {
-                int index = resultScroll + i, ry = y + 102 + i * 23;
-                if (index < results.size() && inside(mx, my, x + 16, ry, 250, 21)) {
-                    selectedItem = new ItemStack(results.get(index));
-                    Config.get().donutAuctionItemWorthKnown = false;
-                    worthField.setText("");
-                    return true;
-                }
+            int listX = x + 16, listY = y + 102, viewH = 8 * 23 - 2;
+            if (results.size() > 8 && inside(mx, my, listX + 244, listY, 12, viewH)) {
+                draggingBar = true;
+                dragScrollTo(my);
+                return true;
+            }
+            if (inside(mx, my, listX, listY, 244, viewH)) {
+                int index = (int) Math.floor((my - listY) / 23.0 + smoothScroll);
+                if (index >= 0 && index < results.size()) { select(index); return true; }
             }
             if (inside(mx, my, x + 16, y + 298, 100, 18)) { close(); return true; }
             if (inside(mx, my, px, y + 218, 28, 20)) { durationSeconds = Math.max(5, durationSeconds - (shiftHeld() ? 5 : 15)); return true; }
@@ -231,21 +326,51 @@ public final class AuctionSetupScreen extends Screen {
         }
         return super.mouseClicked(click, doubled);
     }
+    private void dragScrollTo(double my) {
+        int viewH = 8 * 23 - 2;
+        int thumbH = Math.max(14, viewH * 8 / Math.max(1, results.size()));
+        double t = (my - (top() + 102) - thumbH / 2.0) / Math.max(1, viewH - thumbH);
+        int max = Math.max(0, results.size() - 8);
+        resultScroll = (int) Math.max(0, Math.min(max, Math.round(t * max)));
+    }
+    @Override
+    public boolean mouseDragged(Click click, double offsetX, double offsetY) {
+        if (draggingBar) { dragScrollTo(click.y()); return true; }
+        return super.mouseDragged(click, offsetX, offsetY);
+    }
+    @Override
+    public boolean mouseReleased(Click click) {
+        if (draggingBar) { draggingBar = false; return true; }
+        return super.mouseReleased(click);
+    }
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (inside(mouseX, mouseY, left() + 16, top() + 100, 250, 190)) {
+        if (inside(mouseX, mouseY, left() + 16, top() + 100, 262, 190)) {
             int max = Math.max(0, results.size() - 8);
-            resultScroll = Math.max(0, Math.min(max, resultScroll - (int) Math.signum(verticalAmount)));
+            resultScroll = Math.max(0, Math.min(max, resultScroll - (int) Math.signum(verticalAmount) * 2));
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
     @Override
     public boolean keyPressed(net.minecraft.client.input.KeyInput input) {
-        if ((input.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER || input.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_KP_ENTER)
-                && !selectedItem.isEmpty() && !searchField.isFocused()) {
-            start();
+        int key = input.key();
+        if (!results.isEmpty() && (key == org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN || key == org.lwjgl.glfw.GLFW.GLFW_KEY_UP)
+                && !worthField.isFocused()) {
+            int step = key == org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN ? 1 : -1;
+            cursor = Math.max(0, Math.min(results.size() - 1, cursor < 0 ? 0 : cursor + step));
+            ensureVisible(cursor);
             return true;
+        }
+        if (key == org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER || key == org.lwjgl.glfw.GLFW.GLFW_KEY_KP_ENTER) {
+            if (searchField.isFocused() && !results.isEmpty()) {
+                select(cursor >= 0 && cursor < results.size() ? cursor : 0);
+                return true;
+            }
+            if (!selectedItem.isEmpty() && !searchField.isFocused()) {
+                start();
+                return true;
+            }
         }
         return super.keyPressed(input);
     }

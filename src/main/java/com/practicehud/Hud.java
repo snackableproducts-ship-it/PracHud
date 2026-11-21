@@ -59,7 +59,16 @@ public final class Hud {
     /** Panels already drawn this frame (several modules can share one panel; draw it once). */
     private static final Set<String> DRAWN = new HashSet<>();
 
+    // Animation state: panels glide to their flow position and bars ease to their value.
+    private static long frame = 0;
+    private static long lastNanos = 0;
+    private static float dt = 0.016f;
+    private static final Map<String, float[]> ANIM = new HashMap<>();
+    private static final Map<String, Float> BARS = new HashMap<>();
+
     private Hud() {}
+
+    private static float ease(float rate) { return 1f - (float) Math.exp(-dt * rate); }
 
     public static void begin() {
         Config c = Config.get();
@@ -67,6 +76,10 @@ public final class Hud {
         cursorY = c.hudY;
         colW = 0;
         DRAWN.clear();
+        long now = System.nanoTime();
+        dt = lastNanos == 0 ? 0.016f : Math.max(0.001f, Math.min(0.1f, (now - lastNanos) / 1e9f));
+        lastNanos = now;
+        frame++;
     }
 
     /** Per-widget scale from the HUD editor times the global HUD scale. */
@@ -119,6 +132,7 @@ public final class Hud {
 
         int ry = y + TITLE_H;
         int inner = w - PAD * 2;
+        int barIndex = 0;
         for (Row r : rows) {
             String[] parts = split(r.text());
             if (parts == null) {
@@ -131,7 +145,11 @@ public final class Hud {
             }
             if (r.frac() >= 0) {
                 ctx.fill(x + PAD, ry + 11, x + w - PAD, ry + 13, TRACK);
-                int fill = Math.round(inner * r.frac());
+                String bk = title + "#" + (barIndex++);
+                float shown = BARS.getOrDefault(bk, r.frac());
+                shown += (r.frac() - shown) * ease(10f);
+                BARS.put(bk, shown);
+                int fill = Math.round(inner * shown);
                 if (fill > 0) ctx.fill(x + PAD, ry + 11, x + PAD + fill, ry + 13, r.color());
                 ry += BAR_ROW_H;
             } else {
@@ -229,9 +247,12 @@ public final class Hud {
         int sw = ctx.getScaledWindowWidth(), sh = ctx.getScaledWindowHeight();
         int[] custom = c.hudPositions.get(title);
         int x, y;
+        float[] st = ANIM.get(title);
+        boolean fresh = st == null || st[2] < frame - 1;
         if (custom != null) {
             x = custom[0];
             y = custom[1];
+            ANIM.put(title, new float[]{x, y, frame});
         } else {
             // Start a new column instead of running off the bottom (which used to stack panels).
             if (cursorY > c.hudY && cursorY + h > sh - 4) {
@@ -239,10 +260,21 @@ public final class Hud {
                 cursorY = c.hudY;
                 colW = 0;
             }
-            x = cursorX;
-            y = cursorY;
+            float tx = cursorX, ty = cursorY;
             cursorY += h + GAP;
             colW = Math.max(colW, w);
+            if (fresh) {
+                st = new float[]{tx - 14f, ty, frame};   // slide in from the left
+            } else {
+                st[0] += (tx - st[0]) * ease(14f);
+                st[1] += (ty - st[1]) * ease(14f);
+                st[2] = frame;
+            }
+            if (Math.abs(tx - st[0]) < 0.3f) st[0] = tx;
+            if (Math.abs(ty - st[1]) < 0.3f) st[1] = ty;
+            ANIM.put(title, st);
+            x = Math.round(st[0]);
+            y = Math.round(st[1]);
         }
         x = Math.max(0, Math.min(sw - w, x));
         y = Math.max(0, Math.min(sh - h, y));
